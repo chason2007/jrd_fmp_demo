@@ -46,5 +46,23 @@ api.interceptors.response.use(
 
 /** Pull a safe, human-friendly message out of an axios error. */
 export function errorMessage(err, fallback = 'Something went wrong') {
-  return err?.response?.data?.error || err?.message || fallback;
+  const serverError = err?.response?.data?.error;
+  if (serverError) {
+    if (typeof serverError === 'string') return serverError;
+    if (typeof serverError === 'object') {
+      return serverError.message || serverError.code || JSON.stringify(serverError);
+    }
+  }
+
+  const data = err?.response?.data;
+  if (data) {
+    if (typeof data === 'string') return data;
+    if (typeof data === 'object') {
+      if (data.message && typeof data.message === 'string') return data.message;
+      if (data.error && typeof data.error === 'string') return data.error;
+    }
+  }
+
+  if (err?.message && typeof err.message === 'string') return err.message;
+  return fallback;
 }

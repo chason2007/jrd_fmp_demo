@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { useConfirm } from '../../context/ConfirmContext.jsx';
-import { api } from '../../api/client.js';
+import { api, errorMessage } from '../../api/client.js';
 import NetworkStatus from '../../components/NetworkStatus.jsx';
 import ListSkeleton from '../../components/ListSkeleton.jsx';
 import ThemeToggle from '../../components/ThemeToggle.jsx';
@@ -105,7 +105,7 @@ export default function AdminPortal() {
       show('User status updated successfully.', 'success');
       fetchUsers();
     } catch (e) {
-      show(e.response?.data?.error || 'Failed to toggle status', 'error');
+      show(errorMessage(e, 'Failed to toggle status'), 'error');
     }
   };
 
@@ -115,7 +115,7 @@ export default function AdminPortal() {
       show('User role updated successfully.', 'success');
       fetchUsers();
     } catch (e) {
-      show(e.response?.data?.error || 'Failed to update user role', 'error');
+      show(errorMessage(e, 'Failed to update user role'), 'error');
     }
   };
 
@@ -128,7 +128,7 @@ export default function AdminPortal() {
       setNewPasswordVal('');
       show('Password updated successfully.', 'success');
     } catch (e) {
-      show(e.response?.data?.error || 'Failed to reset password', 'error');
+      show(errorMessage(e, 'Failed to reset password'), 'error');
     }
   };
 
@@ -145,7 +145,7 @@ export default function AdminPortal() {
       show('User details updated successfully.', 'success');
       fetchUsers();
     } catch (e) {
-      show(e.response?.data?.error || 'Failed to update user', 'error');
+      show(errorMessage(e, 'Failed to update user'), 'error');
     }
   };
 
@@ -158,9 +158,9 @@ export default function AdminPortal() {
         setPasswordConfirmModal({ isOpen: false, title: '', message: '', password: '', error: '', onConfirm: null });
       } catch (e) {
         if (user?.role === 'SUPERADMIN') {
-          setPasswordConfirmModal(prev => ({ ...prev, error: e.response?.data?.error || 'Verification failed.' }));
+          setPasswordConfirmModal(prev => ({ ...prev, error: errorMessage(e, 'Verification failed.') }));
         } else {
-          show(e.response?.data?.error || 'Failed to delete user', 'error');
+          show(errorMessage(e, 'Failed to delete user'), 'error');
         }
       }
     };
@@ -188,7 +188,7 @@ export default function AdminPortal() {
         fetchUsers();
         setPasswordConfirmModal({ isOpen: false, title: '', message: '', password: '', error: '', onConfirm: null });
       } catch (e) {
-        setPasswordConfirmModal(prev => ({ ...prev, error: e.response?.data?.error || 'Verification failed.' }));
+        setPasswordConfirmModal(prev => ({ ...prev, error: errorMessage(e, 'Verification failed.') }));
       }
     };
 
@@ -209,7 +209,7 @@ export default function AdminPortal() {
         show(res.data.message || 'All database records purged successfully.', 'success');
         setPasswordConfirmModal({ isOpen: false, title: '', message: '', password: '', error: '', onConfirm: null });
       } catch (e) {
-        setPasswordConfirmModal(prev => ({ ...prev, error: e.response?.data?.error || 'Verification failed.' }));
+        setPasswordConfirmModal(prev => ({ ...prev, error: errorMessage(e, 'Verification failed.') }));
       }
     };
 
@@ -230,7 +230,7 @@ export default function AdminPortal() {
         show(res.data.message || 'Module records purged successfully.', 'success');
         setPasswordConfirmModal({ isOpen: false, title: '', message: '', password: '', error: '', onConfirm: null });
       } catch (e) {
-        setPasswordConfirmModal(prev => ({ ...prev, error: e.response?.data?.error || 'Verification failed.' }));
+        setPasswordConfirmModal(prev => ({ ...prev, error: errorMessage(e, 'Verification failed.') }));
       }
     };
 
@@ -253,8 +253,9 @@ export default function AdminPortal() {
       setNewUser({ username: '', password: '', role: 'AUDITOR', name: '', idNumber: '' });
       fetchUsers();
     } catch (e) {
-      setFormError(e.response?.data?.error || 'Failed to create user');
-      show(e.response?.data?.error || 'Failed to create user', 'error');
+      const errText = errorMessage(e, 'Failed to create user');
+      setFormError(errText);
+      show(errText, 'error');
     }
   };
 
@@ -267,7 +268,7 @@ export default function AdminPortal() {
       });
       fetchResets();
     } catch (e) {
-      show(e.response?.data?.error || 'Failed to approve reset', 'error');
+      show(errorMessage(e, 'Failed to approve reset'), 'error');
     }
   };
 
