@@ -121,6 +121,7 @@ ensureUploadDir();
 prisma
   .$connect()
   .then(() => {
+    logger.info('Database connected successfully.');
     startCleanupTask();
     const server = app.listen(env.PORT, () => logger.info(`API listening on http://localhost:${env.PORT}`));
 
