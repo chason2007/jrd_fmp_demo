@@ -1,0 +1,963 @@
+/* Velora Custom Styling - Zinc/Slate Theme matching WV & Villa */
+:root {
+  --velora-primary: #18181b;
+  --velora-primary-dark: #09090b;
+  --velora-primary-light: #ffffff; /* Changed to full bleed white background */
+  --velora-primary-hover: #27272a;
+  --velora-bg-gradient: none; /* Removed gradients */
+  --velora-card-bg: #ffffff;
+  --velora-text-main: #09090b;
+  --velora-text-muted: #71717a;
+  --velora-border-color: #e4e4e7;
+  --velora-on-primary: #ffffff; /* text/icon on a --velora-primary fill */
+
+  --radius-xl: 4px;
+  --radius-lg: 4px;
+  --radius-md: 4px;
+  --radius-sm: 2px;
+
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+}
+
+/* Dark theme overrides for Velora's own token set (see index.css for globals). */
+:root[data-theme="dark"] {
+  --velora-primary: #fafafa;
+  --velora-primary-dark: #fafafa;   /* icon/text sitting on a primary-light surface */
+  --velora-primary-hover: #d4d4d8;
+  --velora-primary-light: #212124;  /* dark accent surface */
+  --velora-card-bg: #1c1c1f;
+  --velora-text-main: #fafafa;
+  --velora-text-muted: #8b8b93;
+  --velora-border-color: #2e2e33;
+  --velora-on-primary: #18181b;     /* dark text on the now-light primary fill */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --velora-primary: #fafafa;
+    --velora-primary-dark: #fafafa;
+    --velora-primary-hover: #d4d4d8;
+    --velora-primary-light: #212124;
+    --velora-card-bg: #1c1c1f;
+    --velora-text-main: #fafafa;
+    --velora-text-muted: #8b8b93;
+    --velora-border-color: #2e2e33;
+    --velora-on-primary: #18181b;
+  }
+}
+
+.velora-container {
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--velora-text-main);
+  font-family: var(--font-sans);
+  padding: 16px;
+}
+
+.velora-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.velora-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--velora-border-color);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.velora-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.velora-title-section h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--velora-text-main);
+  margin: 0 0 2px 0;
+}
+
+.velora-title-section p {
+  font-size: 12px;
+  color: var(--velora-text-muted);
+  margin: 0;
+}
+
+.velora-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.velora-badge {
+  padding: 6px 12px;
+  background: var(--velora-card-bg);
+  border: 1px solid var(--velora-border-color);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--velora-text-muted);
+  box-shadow: var(--shadow-sm);
+}
+
+.velora-btn-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--velora-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.velora-btn-text:hover {
+  background: var(--velora-primary-light);
+  color: var(--velora-primary-dark);
+}
+
+.velora-nav-tabs {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid var(--velora-border-color);
+  padding-bottom: 1px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.velora-nav-tab {
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--velora-text-muted);
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.velora-nav-tab:hover {
+  color: var(--velora-text-main);
+  border-bottom-color: var(--velora-border-color);
+  background: transparent;
+}
+
+.velora-nav-tab.active {
+  color: var(--velora-text-main);
+  border-bottom-color: var(--velora-primary);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Dashboard Stats */
+.velora-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.velora-stat-card {
+  background: var(--velora-card-bg);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  border: 1px solid var(--velora-border-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.velora-stat-card:hover {
+  background: var(--zinc-50);
+}
+
+.velora-stat-icon {
+  width: 44px;
+  height: 44px;
+  background: var(--velora-primary-light);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--velora-primary-dark);
+  margin-bottom: 16px;
+}
+
+.velora-stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--velora-text-main);
+  line-height: 1.1;
+}
+
+.velora-stat-label {
+  color: var(--velora-text-muted);
+  font-size: 0.8rem;
+  margin-top: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* KPI Score Card */
+.velora-kpi-card {
+  background: linear-gradient(135deg, var(--zinc-800) 0%, var(--zinc-900) 100%);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  color: white;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.velora-kpi-score {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--velora-primary-hover);
+  line-height: 1;
+}
+
+/* The KPI card's zinc gradient would invert to light in dark mode; pin it dark so
+   its white text stays readable. */
+:root[data-theme="dark"] .velora-kpi-card {
+  background: linear-gradient(135deg, #27272a 0%, #18181b 100%);
+  color: #fafafa;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .velora-kpi-card {
+    background: linear-gradient(135deg, #27272a 0%, #18181b 100%);
+    color: #fafafa;
+  }
+}
+
+/* Form Cards */
+.velora-card {
+  background: var(--velora-card-bg);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--velora-border-color);
+}
+
+.velora-card-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--velora-text-main);
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--velora-bg-gradient);
+}
+
+.velora-card-title svg {
+  color: var(--velora-primary);
+}
+
+.velora-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.velora-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.velora-input-group label {
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--zinc-600);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.velora-input-group label svg {
+  color: var(--velora-primary);
+}
+
+.velora-card select, 
+.velora-card input[type="text"], 
+.velora-card input[type="date"], 
+.velora-card textarea {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--velora-border-color);
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  outline: none;
+  background: var(--velora-card-bg);
+  color: var(--velora-text-main);
+}
+
+.velora-card select:focus, 
+.velora-card input[type="text"]:focus, 
+.velora-card input[type="date"]:focus, 
+.velora-card textarea:focus {
+  border-color: var(--velora-primary);
+  background: var(--velora-card-bg);
+  box-shadow: 0 0 0 2px rgba(24, 24, 27, 0.08);
+}
+
+.velora-card select:disabled {
+  background: var(--zinc-100);
+  color: var(--velora-text-muted);
+  cursor: not-allowed;
+}
+
+.velora-btn-primary, 
+.velora-btn-secondary, 
+.velora-btn-success, 
+.velora-btn-danger {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.velora-btn-primary {
+  background: var(--velora-primary);
+  color: var(--velora-on-primary);
+}
+
+.velora-btn-primary:hover:not(:disabled) {
+  background: var(--velora-primary-hover);
+}
+
+.velora-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.velora-btn-secondary {
+  background: var(--zinc-100);
+  color: var(--velora-text-main);
+  border: 1px solid var(--velora-border-color);
+}
+
+.velora-btn-secondary:hover {
+  background: var(--zinc-200);
+}
+
+.velora-btn-success {
+  background: var(--ok);
+  color: white;
+}
+
+.velora-btn-success:hover {
+  background: var(--ok);
+}
+
+.velora-btn-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.1);
+}
+
+.velora-btn-danger:hover {
+  background: var(--danger-border);
+}
+
+/* Locations List & Badges */
+.velora-location-area {
+  background: var(--zinc-50);
+  border: 1px dashed var(--velora-primary);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.velora-location-badge {
+  background: var(--velora-primary-light);
+  padding: 8px 16px;
+  border-radius: var(--radius-lg);
+  font-size: 0.85rem;
+  color: var(--velora-primary-dark);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px;
+  border: 1px solid var(--velora-border-color);
+}
+
+.velora-btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--velora-primary-dark);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.velora-btn-icon:hover {
+  background: var(--velora-primary-light);
+}
+
+/* Observations List */
+.velora-section-header {
+  margin: 24px 0 16px 0;
+  padding-left: 12px;
+  border-left: 4px solid var(--velora-primary);
+}
+
+.velora-section-header h3 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--velora-text-main);
+  margin: 0;
+}
+
+.velora-observation-card {
+  background: var(--velora-card-bg);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--velora-border-color);
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.velora-observation-header {
+  background: var(--zinc-50);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--velora-border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.velora-observation-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--velora-text-main);
+}
+
+.velora-observation-body {
+  padding: 20px;
+}
+
+.velora-checklist-row {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px dashed var(--velora-border-color);
+}
+
+.velora-checklist-row:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.velora-checklist-row label.item-title {
+  font-weight: 800;
+  color: var(--velora-text-main);
+  display: block;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+}
+
+.velora-response-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.velora-response-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: 1px solid var(--velora-border-color);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  background: var(--velora-card-bg);
+}
+
+.velora-response-option:hover {
+  border-color: var(--velora-primary);
+  background: var(--velora-primary-light);
+}
+
+.velora-response-option input[type="radio"] {
+  accent-color: var(--velora-primary);
+}
+
+/* Highlight Selected Responses */
+.velora-response-option.selected-Acceptable {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+.velora-response-option.selected-NeedsImprovement {
+  border-color: var(--warn-solid);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+.velora-response-option.selected-Unacceptable {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+/* Defect Fields */
+.velora-defect-fields {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--zinc-50);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--velora-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Image Previews */
+.velora-image-preview-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.velora-image-preview {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--velora-border-color);
+}
+
+.velora-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.velora-remove-image {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.velora-remove-image:hover {
+  background: rgba(220, 38, 38, 0.9);
+}
+
+.velora-add-observation-btn {
+  width: 100%;
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--velora-primary-light);
+  color: var(--velora-primary-dark);
+  border: 2px dashed var(--velora-primary);
+  border-radius: var(--radius-xl);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.velora-add-observation-btn:hover:not(.disabled) {
+  background: var(--velora-primary-light);
+  border-color: var(--velora-primary);
+  transform: translateY(-2px);
+}
+
+.velora-add-observation-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--zinc-200);
+  color: var(--zinc-500);
+  border-color: var(--zinc-300);
+  pointer-events: none;
+}
+
+/* Tables & Lists */
+.velora-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.velora-data-table th, 
+.velora-data-table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--velora-border-color);
+}
+
+.velora-data-table th {
+  background: var(--zinc-50);
+  font-weight: 700;
+  color: var(--zinc-600);
+}
+
+.velora-status-badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.velora-status-compliant {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.velora-status-partial {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.velora-status-non_compliant {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.velora-empty-state {
+  text-align: center;
+  padding: 60px 40px;
+  color: var(--velora-text-muted);
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.velora-empty-state svg {
+  color: var(--zinc-300);
+}
+
+/* Drafts & PDF list items */
+.velora-draft-item,
+.velora-pdf-item {
+  background: var(--zinc-50);
+  border: 1px solid var(--velora-border-color);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  transition: all 0.2s ease;
+}
+
+.velora-draft-item:hover,
+.velora-pdf-item:hover {
+  border-color: var(--velora-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.velora-item-info {
+  flex: 1;
+  min-width: 250px;
+}
+
+.velora-item-title {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--velora-text-main);
+  margin-bottom: 6px;
+}
+
+.velora-item-meta {
+  font-size: 0.8rem;
+  color: var(--velora-text-muted);
+  font-weight: 500;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.velora-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .velora-container {
+    padding: 16px;
+  }
+  
+  .velora-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .velora-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .velora-nav-tabs {
+    border-radius: var(--radius-xl);
+  }
+  
+  .velora-nav-tab {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .velora-response-options {
+    flex-direction: column;
+  }
+  
+  .velora-draft-item,
+  .velora-pdf-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .velora-item-actions {
+    justify-content: flex-end;
+  }
+}
+
+/* Animations and Interactive Stepper */
+@keyframes veloraFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.velora-fade-in-up {
+  animation: veloraFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.velora-card {
+  animation: veloraFadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.velora-observation-card {
+  animation: veloraFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.velora-observation-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Micro-animations and transitions */
+.velora-btn-primary,
+.velora-btn-secondary,
+.velora-btn-success,
+.velora-btn-danger,
+.velora-nav-tab,
+.velora-response-option,
+.velora-btn-text {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.velora-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.velora-btn-secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.velora-btn-success:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.velora-btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.velora-nav-tab:hover {
+  transform: translateY(-2px);
+}
+
+.velora-nav-tab.active:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.velora-response-option:hover {
+  transform: scale(1.02);
+}
+
+/* Location Progress Stepper */
+.velora-stepper {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 8px 4px;
+  margin-bottom: 24px;
+  border-bottom: 1.5px solid var(--velora-border-color);
+  padding-bottom: 16px;
+  scrollbar-width: thin;
+}
+
+.velora-stepper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.velora-stepper::-webkit-scrollbar-thumb {
+  background: var(--velora-border-color);
+  border-radius: 4px;
+}
+
+.velora-stepper-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--velora-card-bg);
+  border: 1px solid var(--velora-border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--velora-text-muted);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.velora-stepper-step:hover {
+  transform: translateY(-2px);
+  border-color: var(--velora-primary);
+  background: var(--velora-primary-light);
+  color: var(--velora-primary-dark);
+}
+
+.velora-stepper-step.active {
+  background: var(--velora-primary);
+  color: var(--velora-on-primary);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.velora-stepper-step.completed {
+  border-color: var(--ok);
+}
+
+.velora-stepper-step.completed:not(.active) {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.velora-stepper-step .step-number {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.velora-stepper-step.active .step-number {
+  background: rgba(127, 127, 127, 0.25);
+  color: var(--velora-on-primary);
+}
+
+.velora-stepper-step.completed .step-number {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--ok);
+}
+
+.velora-stepper-step.completed.active .step-number {
+  background: rgba(127, 127, 127, 0.25);
+  color: var(--velora-on-primary);
+}
+
+.velora-stepper-step .step-check {
+  color: var(--ok);
+  margin-left: 2px;
+}
+
+.velora-stepper-step.active .step-check {
+  color: var(--velora-on-primary);
+}
+
+/* ── Mobile Touch Target Optimization ── */
+@media (pointer: coarse) {
+  .velora-btn-text, .velora-nav-tab, .velora-btn, button {
+    min-height: 44px;
+  }
+  .velora-input, .velora-select, .velora-input-group select, .velora-input-group input {
+    min-height: 44px;
+    font-size: 16px; /* Prevents mobile browser auto-zoom on focus */
+  }
+}
+

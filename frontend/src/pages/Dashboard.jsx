@@ -1,0 +1,374 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api/client.js';
+import NetworkStatus from '../components/NetworkStatus.jsx';
+import ThemeToggle from '../components/ThemeToggle.jsx';
+import { useConfirm } from '../context/ConfirmContext.jsx';
+import { SnagIcon, BuildingIcon, HomeIcon, GearIcon } from '../components/ModuleIcons.jsx';
+
+/** "3 min ago" / "2 hours ago" — falls back to a full date past a week. */
+function relativeTime(dateInput) {
+  if (!dateInput) return 'Unsaved';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+  const diffMs = Date.now() - d.getTime();
+  const min = Math.round(diffMs / 60000);
+  if (min < 1) return 'Just now';
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+  const days = Math.round(hr / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return d.toLocaleDateString();
+}
+
+export default function Dashboard() {
+  const { user, logout } = useAuth();
+  const { show } = useToast();
+  const { t } = useTranslation();
+  const confirm = useConfirm();
+  const navigate = useNavigate();
+  const [drafts, setDrafts] = useState([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(true);
+
+  useEffect(() => {
+    if (user?.role === 'SUPERADMIN') {
+      navigate('/admin');
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    if (user && user.role !== 'SUPERADMIN') {
+      fetchActiveDrafts();
+    }
+  }, [user]);
+
+  const fetchActiveDrafts = async () => {
+    setLoadingDrafts(true);
+    const foundDrafts = [];
+
+    // 1. Check local storage for offline drafts
+    try {
+      const localVilla = localStorage.getItem('villa_inspection_offline_draft');
+      if (localVilla) {
+        const parsed = JSON.parse(localVilla);
+        foundDrafts.push({
+          id: 'local_villa',
+          type: 'villa',
+          title: `Villa ${parsed.property?.propertyNo || 'Draft'} (Offline Backup)`,
+          description: `Created: ${parsed.property?.inspectionDate || 'Unsaved'}`,
+          isLocal: true,
+          data: parsed
+        });
+      }
+
+      const localWv = localStorage.getItem('wv_inspection_offline_draft');
+      if (localWv) {
+        const parsed = JSON.parse(localWv);
+        foundDrafts.push({
+          id: 'local_wv',
+          type: 'wv',
+          title: `Workers Village (${parsed.meta?.auditType || 'Draft'}) (Offline Backup)`,
+          description: `Building: ${parsed.meta?.building || 'Unsaved'}`,
+          isLocal: true,
+          data: parsed
+        });
+      }
+
+      const localVelora = localStorage.getItem('velora_inspection_offline_draft');
+      if (localVelora) {
+        const parsed = JSON.parse(localVelora);
+        foundDrafts.push({
+          id: 'local_velora',
+          type: 'velora',
+          title: `Velora (${parsed.serviceCategory || 'Draft'}) (Offline Backup)`,
+          description: `Date: ${parsed.auditDate || 'Unsaved'}`,
+          isLocal: true,
+          data: parsed
+        });
+      }
+    } catch (e) {
+      console.error('Error reading local drafts', e);
+    }
+
+    // 2. Fetch server drafts from endpoints (if online)
+    if (navigator.onLine) {
+      try {
+        const [villaRes, wvRes, veloraRes] = await Promise.all([
+          api.get('/api/villa/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
+          api.get('/api/wv/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
+          api.get('/api/velora/drafts').catch(() => ({ data: { data: { drafts: [] } } }))
+        ]);
+
+        const villaDrafts = villaRes.data?.data?.drafts || [];
+        const wvDrafts = wvRes.data?.data?.drafts || [];
+        const veloraDrafts = veloraRes.data?.data?.drafts || [];
+
+        villaDrafts.forEach(d => {
+          let propNo = 'Draft';
+          try {
+            const parsed = typeof d.propertyData === 'string' ? JSON.parse(d.propertyData) : d.propertyData;
+            if (parsed?.propertyNo) propNo = parsed.propertyNo;
+          } catch (e) {}
+          foundDrafts.push({
+            id: d.id,
+            type: 'villa',
+            title: `Villa ${propNo}`,
+            description: `Last saved: ${relativeTime(d.updatedAt)}`,
+            data: d
+          });
+        });
+
+        wvDrafts.forEach(d => {
+          foundDrafts.push({
+            id: d.id,
+            type: 'wv',
+            title: `WV Audit (${d.auditType || 'Draft'})`,
+            description: `Building: ${d.building || 'N/A'} · Saved ${relativeTime(d.updatedAt || d.createdAt)}`,
+            data: d
+          });
+        });
+
+        veloraDrafts.forEach(d => {
+          foundDrafts.push({
+            id: d.id,
+            type: 'velora',
+            title: `Velora (${d.serviceCategory || 'Draft'})`,
+            description: `Audit: ${d.auditNumber || 'N/A'} · Saved ${relativeTime(d.updatedAt)}`,
+            data: d
+          });
+        });
+      } catch (e) {
+        console.error('Error fetching server drafts', e);
+      }
+    }
+
+    setDrafts(foundDrafts);
+    setLoadingDrafts(false);
+  };
+
+  const handleResumeDraft = (draft) => {
+    if (draft.type === 'villa') {
+      navigate('/villa', { state: { resumeDraft: draft.data } });
+    } else if (draft.type === 'wv') {
+      navigate('/wv', { state: { resumeDraft: draft.data } });
+    } else if (draft.type === 'velora') {
+      navigate('/velora', { state: { resumeDraft: draft.data } });
+    }
+  };
+
+  const handleDeleteDraft = async (e, draft) => {
+    e.stopPropagation();
+    if (!(await confirm(`Are you sure you want to delete this ${draft.type} draft?`))) {
+      return;
+    }
+    try {
+      if (draft.isLocal) {
+        let key = '';
+        if (draft.type === 'villa') key = 'villa_inspection_offline_draft';
+        else if (draft.type === 'wv') key = 'wv_inspection_offline_draft';
+        else if (draft.type === 'velora') key = 'velora_inspection_offline_draft';
+        if (key) {
+          localStorage.removeItem(key);
+          show('Offline draft deleted.', 'success');
+        }
+      } else {
+        if (draft.type === 'villa') {
+          await api.delete(`/api/villa/drafts/${draft.id}`);
+        } else if (draft.type === 'wv') {
+          await api.delete(`/api/wv/drafts/${draft.id}`);
+        } else if (draft.type === 'velora') {
+          await api.delete(`/api/velora/drafts/${draft.id}`);
+        }
+        show('Draft deleted successfully.', 'success');
+      }
+      fetchActiveDrafts();
+    } catch (err) {
+      console.error('Error deleting draft:', err);
+      show('Failed to delete draft. Please try again.', 'error');
+    }
+  };
+
+  if (user?.role === 'SUPERADMIN') return null;
+
+  return (
+    <div className="app-container">
+      <header className="app-header">
+        <div className="logo">
+          <img src="/logo.png" alt="JR Dream Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+          <div>
+            <h1>{t('jrDreamTitleDashboard', 'JR DREAM')}</h1>
+            <p>{t('facilitiesManagementDashboard', 'FACILITIES MANAGEMENT PORTAL')}</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <NetworkStatus />
+          <ThemeToggle />
+          <span className="status-badge">
+            {user?.username} · {user?.role}
+          </span>
+          <button
+            className="btn-danger-outline"
+            onClick={logout}
+            style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}
+          >
+            {t('logout', 'Logout')}
+          </button>
+        </div>
+      </header>
+
+      <main className="main-content">
+        {/* Active Drafts Section */}
+        {user?.role !== 'SUPERADMIN' && (loadingDrafts || drafts.length > 0) && (
+          <div className="card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--primary)' }}>
+            <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Resume Active Drafts</span>
+              <button
+                className="btn-secondary"
+                style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                onClick={fetchActiveDrafts}
+                disabled={loadingDrafts}
+              >
+                Refresh
+              </button>
+            </div>
+            <p style={{ color: 'var(--gray)', fontSize: '0.9rem', margin: '1rem 1rem 0.5rem' }}>
+              You have the following saved drafts. Click any card to load it and continue auditing:
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', padding: '0.5rem 1rem 1rem' }}>
+              {loadingDrafts
+                ? [0, 1, 2].map(i => (
+                    <div key={`sk-${i}`} className="skeleton-card" aria-hidden="true">
+                      <div className="skeleton skeleton-line" style={{ width: '55%' }} />
+                      <div className="skeleton skeleton-line" style={{ width: '80%', marginTop: '0.9rem' }} />
+                    </div>
+                  ))
+                : drafts.map(d => (
+                    <div
+                      key={`${d.type}-${d.id}`}
+                      className="card card-clickable"
+                      role="button"
+                      tabIndex={0}
+                      style={{
+                        border: '1px solid',
+                        padding: '1rem',
+                        margin: 0,
+                        background: d.isLocal ? 'var(--warn-bg)' : 'var(--white)',
+                        borderColor: d.isLocal ? 'var(--warn-border)' : 'var(--border)',
+                        position: 'relative',
+                      }}
+                      onClick={() => handleResumeDraft(d)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleResumeDraft(d); } }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700' }}>{d.title}</h4>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          fontSize: '0.7rem',
+                          fontWeight: '600',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                          backgroundColor: d.isLocal ? 'var(--warn-bg)' : 'var(--ok-bg)',
+                          color: d.isLocal ? 'var(--warn-fg)' : 'var(--ok-fg)',
+                        }}>
+                          <span style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: d.isLocal ? 'var(--warn-solid)' : 'var(--ok)',
+                          }} />
+                          {d.isLocal ? 'Offline' : 'Synced'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem' }}>
+                        <p style={{ color: 'var(--gray)', fontSize: '0.8rem', margin: 0 }}>
+                          {d.description}
+                        </p>
+                        <button
+                          className="btn-danger-outline"
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                          onClick={(e) => handleDeleteDraft(e, d)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+            </div>
+          </div>
+        )}
+
+        <div className="card">
+          <div className="card-title">Select Module</div>
+          <p style={{ color: 'var(--gray)', marginBottom: '1.5rem' }}>
+            Welcome, {user?.username}. Please select the audit module you wish to access:
+          </p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+            <div
+              className="card card-clickable module-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/villa')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/villa'); } }}
+            >
+              <span className="module-icon"><SnagIcon /></span>
+              <div>
+                <h3>Snag Audit</h3>
+                <p>General villa inspections and defect logging.</p>
+              </div>
+            </div>
+
+            <div
+              className="card card-clickable module-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/wv')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/wv'); } }}
+            >
+              <span className="module-icon"><BuildingIcon /></span>
+              <div>
+                <h3>Workers Village</h3>
+                <p>WV specific audits and room inspections.</p>
+              </div>
+            </div>
+
+            <div
+              className="card card-clickable module-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/velora')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/velora'); } }}
+            >
+              <span className="module-icon"><HomeIcon /></span>
+              <div>
+                <h3>Velora Audits</h3>
+                <p>Velora property inspections.</p>
+              </div>
+            </div>
+
+            {(user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') && (
+              <div
+                className="card card-clickable module-card"
+                role="button"
+                tabIndex={0}
+                style={{ background: 'var(--zinc-50)' }}
+                onClick={() => navigate('/admin')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/admin'); } }}
+              >
+                <span className="module-icon"><GearIcon /></span>
+                <div>
+                  <h3>Administration Portal</h3>
+                  <p>Manage users, view global audits, and approve resets.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

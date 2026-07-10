@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+*.log
+dist/
+uploads/
+storage/
+pdf_reports/
+prisma/dev.db

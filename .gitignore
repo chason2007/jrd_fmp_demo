@@ -1,0 +1,17 @@
+# Legacy reference code — contains a real credential, kept local-only.
+legacy/
+
+# Local-only dev tooling (machine-specific absolute paths).
+frontend/.claude/
+
+# Stray local files not meant for the repo.
+/logo.png
+frontend/test.png
+
+# Local database/storage backups — never commit these (contain audit data).
+backups/
+
+# Editors / OS
+.vscode/
+.DS_Store
+Thumbs.db

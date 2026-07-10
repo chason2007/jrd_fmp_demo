@@ -1,0 +1,436 @@
+// Audit Portal — Prisma schema (built from scratch)
+// Single MySQL database shared by all three apps (App/Villa, Velora, WV).
+// This file currently contains ONLY the Auth module tables (Phase 2, Module 1).
+// Business tables (villas, audits, drafts, reports, …) are added in their own modules.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// Application roles. Legacy had no roles (every user was all-access);
+/// we introduce the minimal Admin/Auditor split approved in the blueprint.
+enum Role {
+  SUPERADMIN
+  ADMIN
+  AUDITOR
+}
+
+/// A single, shared user table (replaces the legacy `sec_users` that was
+/// duplicated into every app database). Passwords are Argon2id hashes.
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(100)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         Role     @default(AUDITOR)
+  /// Soft-disable: admins can deactivate an auditor without deleting history.
+  isActive     Boolean  @default(true) @map("is_active")
+  name         String?  @db.VarChar(100)
+  idNumber     String?  @map("id_number") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  refreshTokens  RefreshToken[]
+  auditLogs      AuditLog[]
+  audits         Audit[]
+  auditDrafts    AuditDraft[]
+  uploadedPhotos Photo[]
+  passwordResetRequests PasswordResetRequest[]
+  veloraAudits   VeloraAudit[]
+  veloraAuditDrafts VeloraAuditDraft[]
+  veloraPdfReports VeloraPdfReport[]
+  wvAudits       WvAudit[]
+  wvAuditDrafts  WvAuditDraft[]
+
+  @@map("users")
+}
+
+/// Rotating, single-use refresh tokens (opaque random value, stored only as a
+/// SHA-256 hash). Tokens are grouped into a "family"; presenting an already-used
+/// (revoked) token is treated as theft and revokes the whole family.
+model RefreshToken {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  /// SHA-256 hex of the opaque token. 64 chars.
+  tokenHash   String    @unique @map("token_hash") @db.Char(64)
+  /// Groups all rotations descended from one login, for reuse-detection revocation.
+  familyId    String    @map("family_id") @db.Char(36)
+  expiresAt   DateTime  @map("expires_at")
+  /// Set when this token is rotated out or explicitly revoked (logout/theft).
+  revokedAt   DateTime? @map("revoked_at")
+  /// tokenHash of the token that replaced this one (audit trail for rotation).
+  replacedBy  String?   @map("replaced_by") @db.Char(64)
+  createdByIp String?   @map("created_by_ip") @db.VarChar(45)
+  userAgent   String?   @map("user_agent") @db.VarChar(255)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Login attempts, used for per-IP + per-account rate limiting and as a security
+/// audit signal. Successful and failed attempts are both recorded.
+model LoginAttempt {
+  id        Int      @id @default(autoincrement())
+  ipAddress String   @map("ip_address") @db.VarChar(45)
+  username  String?  @db.VarChar(100)
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([ipAddress, createdAt])
+  @@index([username, createdAt])
+  @@map("login_attempts")
+}
+
+/// Security audit log for sensitive events (login success/failure, logout,
+/// role changes, deletes). userId is nullable + SetNull so log rows survive
+/// user deletion. metadata is free-form JSON context (never secrets).
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?     @map("user_id")
+  action     String   @db.VarChar(60)
+  entityType String?  @map("entity_type") @db.VarChar(60)
+  entityId   String?  @map("entity_id") @db.VarChar(100)
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_log")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit Forms module (App / JR Dream villa inspection)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A property/villa under audit. Replaces legacy `villas`.
+model Villa {
+  id             Int      @id @default(autoincrement())
+  propertyNumber String   @unique @map("property_number") @db.VarChar(100)
+  ownerName      String   @map("owner_name") @db.VarChar(255)
+  address        String?  @db.Text
+  emirate        String?  @db.VarChar(100)
+  area           String?  @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  audits Audit[]
+
+  @@map("villas")
+}
+
+enum AuditStatus {
+  DRAFT
+  COMPLETED
+}
+
+/// A completed inspection for a villa. Replaces legacy `audit_master`.
+/// `auditorId` is the OWNER, set server-side from the session — this is what
+/// enables object-level authorization (auditors act only on their own audits,
+/// the IDOR fix). Legacy stored a free-text auditor name with no enforcement.
+model Audit {
+  id         Int         @id @default(autoincrement())
+  auditCode  String      @unique @map("audit_code") @db.VarChar(100)
+  villaId    Int         @map("villa_id")
+  auditorId  Int?        @map("auditor_id")
+  status     AuditStatus @default(COMPLETED)
+  auditDate  DateTime    @default(now()) @map("audit_date")
+  issueCount Int         @default(0) @map("issue_count")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  // Restrict: a villa with audit history can't be deleted out from under it;
+  // the app removes audits/issues first, then the villa (compliance safety).
+  villa   Villa   @relation(fields: [villaId], references: [id], onDelete: Restrict)
+  // SetNull: a completed audit must survive deletion of the auditor's account.
+  auditor User?   @relation(fields: [auditorId], references: [id], onDelete: SetNull)
+  issues  Issue[]
+
+  @@index([villaId])
+  @@index([auditorId])
+  @@index([status, auditDate])
+  @@map("audit_master")
+}
+
+/// A single defect/observation within an audit. Replaces legacy `inspection_issues`.
+/// Photos are NORMALIZED into the `issue_photos` table (was a base64 LONGTEXT blob).
+model Issue {
+  id          Int      @id @default(autoincrement())
+  auditId     Int      @map("audit_id")
+  area        String?  @db.VarChar(50)
+  floor       String?  @db.VarChar(50)
+  room        String?  @db.VarChar(100)
+  spotDesc    String?  @map("spot_desc") @db.Text
+  category    String?  @db.VarChar(50)
+  subCategory String?  @map("sub_category") @db.VarChar(50)
+  issueType   String?  @map("issue_type") @db.VarChar(100)
+  comment     String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  audit  Audit   @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  photos Photo[]
+
+  @@index([auditId])
+  @@map("inspection_issues")
+}
+
+/// Photo METADATA only — the binary lives OUTSIDE the web root / in object storage,
+/// keyed by `storageKey`. Replaces legacy base64-in-DB. Uploads are validated
+/// (magic bytes + size) before a row is created; max 5 per issue (enforced in app).
+/// `issueId` is null while a photo is pending (uploaded but not yet attached to a
+/// finalized issue — e.g. referenced by an in-progress draft); set on final save.
+model Photo {
+  id           Int      @id @default(autoincrement())
+  issueId      Int?     @map("issue_id")
+  /// Set when this photo is attached to a finalized WV audit (parallel to
+  /// issueId for Villa). A photo has at most one of issueId/wvAuditId set.
+  wvAuditId    Int?     @map("wv_audit_id")
+  uploadedById Int?     @map("uploaded_by_id")
+  storageKey   String   @unique @map("storage_key") @db.VarChar(255)
+  originalName String?  @map("original_name") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  sizeBytes    Int      @map("size_bytes")
+  sha256       String   @db.Char(64)
+  width        Int?
+  height       Int?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  issue      Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  wvAudit    WvAudit? @relation(fields: [wvAuditId], references: [id], onDelete: Cascade)
+  uploadedBy User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([issueId])
+  @@index([wvAuditId])
+  @@index([uploadedById])
+  @@index([sha256])
+  @@map("issue_photos")
+}
+
+/// Work-in-progress inspection (autosave). Replaces legacy `inspection_drafts`.
+/// Owned by an auditor (IDOR: only the owner reads/updates/deletes it). `issuesData`
+/// holds the in-progress issue fields as JSON and references uploaded Photo ids — it
+/// intentionally does NOT embed base64 image data.
+model AuditDraft {
+  id              Int      @id @default(autoincrement())
+  draftCode       String   @unique @map("draft_code") @db.VarChar(100)
+  auditCode       String?  @map("audit_code") @db.VarChar(100)
+  auditorId       Int?     @map("auditor_id")
+  propertyNumber  String   @map("property_number") @db.VarChar(100)
+  ownerName       String   @map("owner_name") @db.VarChar(255)
+  propertyAddress String?  @map("property_address") @db.Text
+  emirate         String?  @db.VarChar(100)
+  area            String?  @db.VarChar(100)
+  issuesData      Json     @map("issues_data")
+  issueCount      Int      @default(0) @map("issue_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Cascade: a half-finished personal draft has no value once its owner is gone.
+  auditor User? @relation(fields: [auditorId], references: [id], onDelete: Cascade)
+
+  @@index([auditorId, updatedAt])
+  @@map("inspection_drafts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin & Auth Extensions
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ResetStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Tracks requests from users who forgot their passwords.
+model PasswordResetRequest {
+  id          Int         @id @default(autoincrement())
+  userId      Int         @map("user_id")
+  status      ResetStatus @default(PENDING)
+  requestedAt DateTime    @default(now()) @map("requested_at")
+  resolvedAt  DateTime?   @map("resolved_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("password_reset_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Velora Facilities Services Performance Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A completed Velora service audit. Service categories (Hard/Soft) and types
+/// (General/Periodic/Specialized Maintenance) are coded by ID. Responses holds
+/// a JSON blob of per-location observations (floors/furniture/walls scoring).
+model VeloraAudit {
+  id               Int      @id @default(autoincrement())
+  auditNumber      String   @unique @map("audit_number") @db.VarChar(50)
+  serviceTypeId    Int      @map("service_type_id")
+  serviceCategory  String   @map("service_category") @db.VarChar(20)
+  auditDate        DateTime @map("audit_date")
+  auditorName      String?  @map("auditor_name") @db.VarChar(100)
+  auditorId        Int?     @map("auditor_id")
+  status           String   @default("submitted") @db.VarChar(20)
+  overallScore     Float?   @map("overall_score")
+  overallRating    String?  @map("overall_rating") @db.VarChar(20)
+  locationData     Json?    @map("location_data")
+  responses        Json?
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  auditor User? @relation(fields: [auditorId], references: [id], onDelete: SetNull)
+
+  @@index([auditorId])
+  @@index([status, auditDate])
+  @@map("velora_audits")
+}
+
+/// Work-in-progress Velora audit draft.
+model VeloraAuditDraft {
+  id               Int      @id @default(autoincrement())
+  draftCode        String   @unique @map("draft_code") @db.VarChar(100)
+  auditNumber      String?  @map("audit_number") @db.VarChar(50)
+  serviceTypeId    Int?     @map("service_type_id")
+  serviceCategory  String?  @map("service_category") @db.VarChar(20)
+  auditDate        DateTime? @map("audit_date")
+  auditorName      String?  @map("auditor_name") @db.VarChar(100)
+  auditorId        Int?     @map("auditor_id")
+  locationData     Json?    @map("location_data")
+  responses        Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  auditor User? @relation(fields: [auditorId], references: [id], onDelete: Cascade)
+
+  @@index([auditorId, updatedAt])
+  @@map("velora_audit_drafts")
+}
+
+model VeloraPdfReport {
+  id            Int      @id @default(autoincrement())
+  reportNumber  String   @unique @map("report_number") @db.VarChar(50)
+  auditorId     Int?     @map("auditor_id")
+  auditId       Int?     @map("audit_id")
+  auditNumber   String?  @map("audit_number") @db.VarChar(50)
+  fileName      String   @map("file_name") @db.VarChar(200)
+  filePath      String   @map("file_path") @db.VarChar(500)
+  title         String?  @db.VarChar(200)
+  generatedDate DateTime @default(now()) @map("generated_date")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  auditor User? @relation(fields: [auditorId], references: [id], onDelete: SetNull)
+
+  @@index([auditorId])
+  @@index([auditId])
+  @@index([reportNumber])
+  @@map("velora_pdf_reports")
+}
+
+model VeloraServiceReport {
+  id           Int      @id @default(autoincrement())
+  reportNumber String   @unique @map("report_number") @db.VarChar(50)
+  reportTypeId Int      @map("report_type_id")
+  title        String   @db.VarChar(200)
+  description  String?  @db.Text
+  reportDate   DateTime @map("report_date")
+  createdBy    String?  @map("created_by") @db.VarChar(100)
+  content      String?  @db.Text
+  status       String   @default("published") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([reportDate])
+  @@map("velora_service_reports")
+}
+
+model VeloraComplianceDelivery {
+  id               Int       @id @default(autoincrement())
+  complianceItemId Int       @map("compliance_item_id")
+  deliveryDate     DateTime  @map("delivery_date")
+  status           String    @db.VarChar(20) // 'compliant', 'partial', 'non_compliant'
+  evidence         String?   @db.Text
+  verifiedBy       String?   @map("verified_by") @db.VarChar(100)
+  verificationDate DateTime? @map("verification_date")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([complianceItemId])
+  @@map("velora_compliance_delivery")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WV (Workers Village Accommodation Audit)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Work-in-progress WV audit (autosave). Previously faked via Villa's
+/// inspection_drafts using a "WV-" property-number prefix; this is its own
+/// table now. `auditorId` is the owner (Cascade — a half-finished draft has
+/// no value once its owner is gone), consistent with AuditDraft/VeloraAuditDraft.
+model WvAuditDraft {
+  id            Int      @id @default(autoincrement())
+  draftCode     String   @unique @map("draft_code") @db.VarChar(100)
+  auditCode     String?  @map("audit_code") @db.VarChar(100)
+  auditorId     Int?     @map("auditor_id")
+  auditType     String   @default("rooms") @map("audit_type") @db.VarChar(30)
+  cluster       String?  @db.VarChar(50)
+  building      String?  @db.VarChar(50)
+  floor         String?  @db.VarChar(20)
+  room          String?  @db.VarChar(100)
+  staffName     String?  @map("staff_name") @db.VarChar(150)
+  staffNo       String?  @map("staff_no") @db.VarChar(50)
+  auditDate     DateTime? @map("audit_date")
+  inspectorName String?  @map("inspector_name") @db.VarChar(150)
+  /// Checklist-item responses: { [item]: { answer, comment, photoIds } }
+  responses     Json
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  auditor User? @relation(fields: [auditorId], references: [id], onDelete: Cascade)
+
+  @@index([auditorId, updatedAt])
+  @@map("wv_audit_drafts")
+}
+
+/// A completed WV accommodation audit. `auditorId` SetNull (a completed audit
+/// is a compliance record and must survive deletion of the auditor's account),
+/// matching Audit/VeloraAudit.
+model WvAudit {
+  id                Int      @id @default(autoincrement())
+  auditCode         String   @unique @map("audit_code") @db.VarChar(100)
+  auditorId         Int?     @map("auditor_id")
+  auditType         String   @default("rooms") @map("audit_type") @db.VarChar(30)
+  cluster           String?  @db.VarChar(50)
+  building          String?  @db.VarChar(50)
+  floor             String?  @db.VarChar(20)
+  room              String?  @db.VarChar(100)
+  staffName         String?  @map("staff_name") @db.VarChar(150)
+  staffNo           String?  @map("staff_no") @db.VarChar(50)
+  auditDate         DateTime @map("audit_date")
+  inspectorName     String?  @map("inspector_name") @db.VarChar(150)
+  responses         Json
+  complianceRate    Float?   @map("compliance_rate")
+  totalItems        Int      @default(0) @map("total_items")
+  compliantCount    Int      @default(0) @map("compliant_count")
+  nonCompliantCount Int      @default(0) @map("non_compliant_count")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  auditor User?   @relation(fields: [auditorId], references: [id], onDelete: SetNull)
+  photos  Photo[]
+
+  @@index([auditorId])
+  @@index([auditDate])
+  @@map("wv_audits")
+}
+
