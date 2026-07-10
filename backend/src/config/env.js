@@ -39,7 +39,7 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
-export const corsOrigins = env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
+export const corsOrigins = env.CORS_ORIGINS.split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
 
 // "false"/"true"/<number-of-hops> → Express trust-proxy value.
 export const trustProxy = (() => {
