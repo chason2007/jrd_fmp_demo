@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import PhotoThumb from './PhotoThumb.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 
@@ -41,6 +41,14 @@ export default function PhotoCapture({
   const tmpSeq = useRef(0);
   const [pending, setPending] = useState([]); // { tmpId, url, file, status }
 
+  // Use refs to avoid stale closures in memoized callbacks and event listeners
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const uploadFnRef = useRef(uploadFn);
+  uploadFnRef.current = uploadFn;
+
   function makePreviewUrl(file) {
     const url = URL.createObjectURL(file);
     allUrls.current.add(url);
@@ -57,6 +65,38 @@ export default function PhotoCapture({
     const urls = allUrls.current;
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, []);
+
+  const retry = useCallback(async (entry) => {
+    setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'uploading' } : p)));
+    try {
+      const photo = await uploadFnRef.current(entry.file);
+      previews.current.set(photo.id, entry.url);
+      setPending((prev) => prev.filter((p) => p.tmpId !== entry.tmpId));
+      onChangeRef.current([...valueRef.current, { id: photo.id }]);
+    } catch {
+      setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'error' } : p)));
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        show('Still offline. Could not upload photo.', 'error');
+      } else {
+        show('Still could not upload that photo.', 'error');
+      }
+    }
+  }, [show]);
+
+  // Auto-retry failed uploads when connection is restored
+  useEffect(() => {
+    const handleOnline = () => {
+      setPending((prev) => {
+        const failed = prev.filter((p) => p.status === 'error');
+        failed.forEach((entry) => {
+          retry(entry);
+        });
+        return prev;
+      });
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [retry]);
 
   const uploadingCount = pending.filter((p) => p.status === 'uploading').length;
   const activeCount = value.length + pending.filter((p) => p.status !== 'error').length;
@@ -85,7 +125,7 @@ export default function PhotoCapture({
     const doneTmpIds = [];
     for (const entry of entries) {
       try {
-        const photo = await uploadFn(entry.file);
+        const photo = await uploadFnRef.current(entry.file);
         previews.current.set(photo.id, entry.url);
         uploaded.push({ id: photo.id });
         doneTmpIds.push(entry.tmpId);
@@ -98,24 +138,15 @@ export default function PhotoCapture({
     }
     if (uploaded.length) {
       // Commit and drop the done placeholders in one batched update (seamless swap).
-      onChange([...value, ...uploaded]);
+      onChangeRef.current([...valueRef.current, ...uploaded]);
       setPending((prev) => prev.filter((p) => !doneTmpIds.includes(p.tmpId)));
     }
     if (uploaded.length < entries.length) {
-      show('Some photos could not be uploaded (JPEG, PNG or WebP under 8MB). Tap a failed photo to retry.', 'error');
-    }
-  }
-
-  async function retry(entry) {
-    setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'uploading' } : p)));
-    try {
-      const photo = await uploadFn(entry.file);
-      previews.current.set(photo.id, entry.url);
-      setPending((prev) => prev.filter((p) => p.tmpId !== entry.tmpId));
-      onChange([...value, { id: photo.id }]);
-    } catch {
-      setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'error' } : p)));
-      show('Still could not upload that photo.', 'error');
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        show('You are offline. Photo upload failed. It will upload automatically when connection is restored.', 'error');
+      } else {
+        show('Some photos could not be uploaded (JPEG, PNG or WebP under 8MB). Tap a failed photo to retry.', 'error');
+      }
     }
   }
 
