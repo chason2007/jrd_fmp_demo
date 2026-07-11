@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { api, setAccessToken, setOnLogout } from '../api/client.js';
+import { clearAllPhotos } from '../utils/localPhotoStore.js';
 
 const AuthContext = createContext(null);
 
@@ -18,6 +19,11 @@ function clearOfflineDrafts() {
     } catch {
       /* ignore */
     }
+  }
+  try {
+    clearAllPhotos().catch(console.error);
+  } catch (e) {
+    console.error('Failed to clear local photos on logout:', e);
   }
 }
 

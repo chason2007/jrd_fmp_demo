@@ -15,6 +15,7 @@ import ThemeToggle from '../../components/ThemeToggle.jsx';
 import Lightbox from '../../components/Lightbox.jsx';
 import './WVAuditPro.css';
 import { getChecklist } from './wvChecklists.js';
+import { cleanLocalPhotosForDraft, uploadLocalPhoto } from '../../utils/localPhotoStore.js';
 import {
   Building2, FileText, ClipboardList, Save, LogOut, ThumbsUp, ThumbsDown, LayoutDashboard, ArrowLeft, CheckCircle
 } from 'lucide-react';
@@ -177,6 +178,7 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
   const [loading, setLoading] = useState(false);
   const [offlineDraft, setOfflineDraft] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [syncingPhotos, setSyncingPhotos] = useState(false);
 
   // Check for local offline backup draft on mount
   useEffect(() => {
@@ -224,6 +226,65 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
     },
     { enabled: phase === 'checklist' && !loading, localStorageKey: 'wv_inspection_offline_draft' },
   );
+
+  useEffect(() => {
+    if (phase !== 'checklist') return;
+
+    let active = true;
+    async function performSync() {
+      if (typeof navigator === 'undefined' || !navigator.onLine || syncingPhotos) return;
+
+      const hasLocal = Object.values(responses).some(r => r.images?.some(img => typeof img.id === 'string' && img.id.startsWith('local-')));
+      if (!hasLocal) return;
+
+      setSyncingPhotos(true);
+      try {
+        let responsesChanged = false;
+        const nextResponses = { ...responses };
+
+        for (const [item, r] of Object.entries(responses)) {
+          if (!r.images) continue;
+
+          let itemChanged = false;
+          const nextImages = await Promise.all(r.images.map(async (img) => {
+            if (typeof img.id === 'string' && img.id.startsWith('local-')) {
+              try {
+                const serverId = await uploadLocalPhoto(img.id, wv.uploadPhoto);
+                itemChanged = true;
+                return { id: serverId };
+              } catch (err) {
+                console.error('Failed to sync WV response photo:', err);
+                return img;
+              }
+            }
+            return img;
+          }));
+
+          if (itemChanged) {
+            responsesChanged = true;
+            nextResponses[item] = { ...r, images: nextImages };
+          }
+        }
+
+        if (responsesChanged && active) {
+          setResponses(nextResponses);
+          show('Offline photos synchronized successfully.', 'success');
+        }
+      } catch (err) {
+        console.error('Error during WV photo synchronization:', err);
+      } finally {
+        if (active) setSyncingPhotos(false);
+      }
+    }
+
+    performSync();
+
+    window.addEventListener('online', performSync);
+    return () => {
+      active = false;
+      window.removeEventListener('online', performSync);
+    };
+  }, [phase, responses, syncingPhotos, show]);
 
   const handleStart = () => setPhase('checklist');
 
@@ -347,6 +408,7 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', backgroundColor: 'transparent' }}
               onClick={() => {
                 try {
+                  cleanLocalPhotosForDraft(offlineDraft, 'wv');
                   localStorage.removeItem('wv_inspection_offline_draft');
                 } catch (e) {}
                 setOfflineDraft(null);

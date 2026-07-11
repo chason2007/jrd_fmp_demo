@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import PhotoThumb from './PhotoThumb.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { compressImage } from '../utils/imageCompressor.js';
+import { storePhoto, deletePhoto } from '../utils/localPhotoStore.js';
 
 /**
  * Shared photo-capture control for all audit modules. Improvements over the old
@@ -124,29 +126,62 @@ export default function PhotoCapture({
     const uploaded = [];
     const doneTmpIds = [];
     for (const entry of entries) {
+      // 1. If offline, save locally immediately
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        try {
+          const localId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          const compressed = await compressImage(entry.file);
+          await storePhoto(localId, compressed);
+          previews.current.set(localId, entry.url);
+          uploaded.push({ id: localId });
+          doneTmpIds.push(entry.tmpId);
+          setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'done' } : p)));
+          continue;
+        } catch (localErr) {
+          console.error('Failed to store photo locally when offline:', localErr);
+          setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'error' } : p)));
+          continue;
+        }
+      }
+
+      // 2. If online, attempt upload
       try {
         const photo = await uploadFnRef.current(entry.file);
         previews.current.set(photo.id, entry.url);
         uploaded.push({ id: photo.id });
         doneTmpIds.push(entry.tmpId);
-        // Keep the thumbnail visible (status 'done', no overlay) until the whole
-        // batch commits — avoids earlier photos flickering out mid-upload.
         setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'done' } : p)));
-      } catch {
-        setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'error' } : p)));
+      } catch (uploadErr) {
+        // Fallback to storing locally so the user can still add the defect
+        try {
+          const localId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          const compressed = await compressImage(entry.file);
+          await storePhoto(localId, compressed);
+          previews.current.set(localId, entry.url);
+          uploaded.push({ id: localId });
+          doneTmpIds.push(entry.tmpId);
+          setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'done' } : p)));
+        } catch (localErr) {
+          console.error('Failed to store photo locally after upload error:', localErr);
+          setPending((prev) => prev.map((p) => (p.tmpId === entry.tmpId ? { ...p, status: 'error' } : p)));
+        }
       }
     }
+
     if (uploaded.length) {
       // Commit and drop the done placeholders in one batched update (seamless swap).
       onChangeRef.current([...valueRef.current, ...uploaded]);
       setPending((prev) => prev.filter((p) => !doneTmpIds.includes(p.tmpId)));
     }
+
     if (uploaded.length < entries.length) {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        show('You are offline. Photo upload failed. It will upload automatically when connection is restored.', 'error');
+        show('You are offline. Photo saved locally. It will upload automatically when connection is restored.', 'info');
       } else {
-        show('Some photos could not be uploaded (JPEG, PNG or WebP under 8MB). Tap a failed photo to retry.', 'error');
+        show('Some photos could not be uploaded or saved locally. Tap a failed photo to retry.', 'error');
       }
+    } else if (uploaded.some(u => typeof u.id === 'string' && u.id.startsWith('local-'))) {
+      show('Saved photo locally (offline mode).', 'info');
     }
   }
 
@@ -158,6 +193,9 @@ export default function PhotoCapture({
   function removeCommitted(id) {
     const u = previews.current.get(id);
     if (u) { revoke(u); previews.current.delete(id); }
+    if (typeof id === 'string' && id.startsWith('local-')) {
+      deletePhoto(id).catch((err) => console.error('Failed to delete local photo:', err));
+    }
     onChange(value.filter((p) => p.id !== id));
   }
 
@@ -202,6 +240,27 @@ export default function PhotoCapture({
                   />
                 ) : (
                   <PhotoThumb id={p.id} fetchUrl={fetchUrl} onClick={onLightbox} />
+                )}
+                {typeof p.id === 'string' && p.id.startsWith('local-') && (
+                  <div 
+                    style={{
+                      position: 'absolute',
+                      bottom: '4px',
+                      left: '4px',
+                      background: 'rgba(245, 158, 11, 0.95)',
+                      color: '#ffffff',
+                      fontSize: '9px',
+                      fontWeight: 'bold',
+                      padding: '2px 5px',
+                      borderRadius: '3px',
+                      textTransform: 'uppercase',
+                      pointerEvents: 'none',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                      zIndex: 2,
+                    }}
+                  >
+                    Offline
+                  </div>
                 )}
                 {/* Removing a committed photo mid-batch would be lost when the batch
                     commits with a stale value, so disable while uploads are in flight. */}

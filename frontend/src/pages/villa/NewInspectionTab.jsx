@@ -7,6 +7,7 @@ import PhotoCapture from '../../components/PhotoCapture.jsx';
 import PhotoThumb from '../../components/PhotoThumb.jsx';
 import AutosaveStatus from '../../components/AutosaveStatus.jsx';
 import { EMIRATES, AREA_TYPES, FLOORS, ROOMS, CATEGORIES, SUB_CATEGORIES, ISSUE_TYPES } from '../../lib/options.js';
+import { cleanLocalPhotosForDraft, uploadLocalPhoto } from '../../utils/localPhotoStore.js';
 
 const emptyProperty = { propertyNumber: '', ownerName: '', propertyAddress: '', emirate: 'Dubai', area: '' };
 const emptyDefect = { area: '', floor: '', room: '', category: '', subCategory: '', issueType: '', spotDesc: '', comment: '' };
@@ -51,6 +52,7 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
   const [offlineDraft, setOfflineDraft] = useState(null);
   const [propertyErrors, setPropertyErrors] = useState({});
   const [defectErrors, setDefectErrors] = useState({});
+  const [syncingPhotos, setSyncingPhotos] = useState(false);
 
   // Check for local offline backup draft on mount
   useEffect(() => {
@@ -92,6 +94,87 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
     },
     { enabled: started && !busy && !!property.propertyNumber.trim() && !!property.ownerName.trim(), localStorageKey: 'villa_inspection_offline_draft' },
   );
+
+  useEffect(() => {
+    if (!started) return;
+
+    let active = true;
+    async function performSync() {
+      if (typeof navigator === 'undefined' || !navigator.onLine || syncingPhotos) return;
+
+      const hasLocalIssues = issues.some(iss => iss.photoIds?.some(id => typeof id === 'string' && id.startsWith('local-')));
+      const hasLocalPhotos = photos.some(p => typeof p.id === 'string' && p.id.startsWith('local-'));
+
+      if (!hasLocalIssues && !hasLocalPhotos) return;
+
+      setSyncingPhotos(true);
+      try {
+        // 1. Sync photos in active defect form
+        let photosChanged = false;
+        const nextPhotos = await Promise.all(photos.map(async (p) => {
+          if (typeof p.id === 'string' && p.id.startsWith('local-')) {
+            try {
+              const serverId = await uploadLocalPhoto(p.id, uploadPhoto);
+              photosChanged = true;
+              return { id: serverId };
+            } catch (err) {
+              console.error('Failed to sync active form photo:', err);
+              return p;
+            }
+          }
+          return p;
+        }));
+
+        if (photosChanged && active) {
+          setPhotos(nextPhotos);
+        }
+
+        // 2. Sync photos in already added issues
+        let issuesChanged = false;
+        const nextIssues = await Promise.all(issues.map(async (iss) => {
+          if (!iss.photoIds) return iss;
+
+          let issueChanged = false;
+          const nextPhotoIds = await Promise.all(iss.photoIds.map(async (id) => {
+            if (typeof id === 'string' && id.startsWith('local-')) {
+              try {
+                const serverId = await uploadLocalPhoto(id, uploadPhoto);
+                issueChanged = true;
+                return serverId;
+              } catch (err) {
+                console.error('Failed to sync issue photo:', err);
+                return id;
+              }
+            }
+            return id;
+          }));
+
+          if (issueChanged) {
+            issuesChanged = true;
+            return { ...iss, photoIds: nextPhotoIds };
+          }
+          return iss;
+        }));
+
+        if (issuesChanged && active) {
+          setIssues(nextIssues);
+          show('Offline photos synchronized successfully.', 'success');
+        }
+      } catch (err) {
+        console.error('Error during photo synchronization:', err);
+      } finally {
+        if (active) setSyncingPhotos(false);
+      }
+    }
+
+    performSync();
+
+    window.addEventListener('online', performSync);
+    return () => {
+      active = false;
+      window.removeEventListener('online', performSync);
+    };
+  }, [started, issues, photos, syncingPhotos, show]);
 
   const setProp = (k) => (e) => {
     setProperty((p) => ({ ...p, [k]: e.target.value }));
@@ -233,6 +316,7 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', backgroundColor: 'transparent' }}
               onClick={() => {
                 try {
+                  cleanLocalPhotosForDraft(offlineDraft, 'villa');
                   localStorage.removeItem('villa_inspection_offline_draft');
                 } catch (e) {}
                 setOfflineDraft(null);

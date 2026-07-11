@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchPhotoUrl as fetchVillaPhotoUrl } from '../api/villa.js';
+import { getPhoto } from '../utils/localPhotoStore.js';
 
 /**
  * Renders a server-stored photo by id, fetched as an authenticated blob.
@@ -15,18 +16,37 @@ export default function PhotoThumb({ id, onClick, fetchUrl = fetchVillaPhotoUrl 
     let objectUrl;
     setUrl(null);
     setFailed(false);
-    fetchUrl(id)
-      .then((u) => {
-        if (!active) {
-          URL.revokeObjectURL(u);
-          return;
-        }
-        objectUrl = u;
-        setUrl(u);
-      })
-      .catch(() => {
-        if (active) setFailed(true);
-      });
+
+    if (typeof id === 'string' && id.startsWith('local-')) {
+      getPhoto(id)
+        .then((fileOrBlob) => {
+          if (!active) return;
+          if (fileOrBlob) {
+            objectUrl = URL.createObjectURL(fileOrBlob);
+            setUrl(objectUrl);
+          } else {
+            setFailed(true);
+          }
+        })
+        .catch((err) => {
+          console.error('Error fetching local photo from store:', err);
+          if (active) setFailed(true);
+        });
+    } else {
+      fetchUrl(id)
+        .then((u) => {
+          if (!active) {
+            URL.revokeObjectURL(u);
+            return;
+          }
+          objectUrl = u;
+          setUrl(u);
+        })
+        .catch(() => {
+          if (active) setFailed(true);
+        });
+    }
+
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);

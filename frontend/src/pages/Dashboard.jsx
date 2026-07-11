@@ -8,6 +8,7 @@ import NetworkStatus from '../components/NetworkStatus.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import { useConfirm } from '../context/ConfirmContext.jsx';
 import { SnagIcon, BuildingIcon, HomeIcon, GearIcon } from '../components/ModuleIcons.jsx';
+import { cleanLocalPhotosForDraft } from '../utils/localPhotoStore.js';
 
 /** "3 min ago" / "2 hours ago" — falls back to a full date past a week. */
 function relativeTime(dateInput) {
@@ -172,6 +173,14 @@ export default function Dashboard() {
         else if (draft.type === 'wv') key = 'wv_inspection_offline_draft';
         else if (draft.type === 'velora') key = 'velora_inspection_offline_draft';
         if (key) {
+          try {
+            const saved = localStorage.getItem(key);
+            if (saved) {
+              cleanLocalPhotosForDraft(JSON.parse(saved), draft.type);
+            }
+          } catch (e) {
+            console.error('Failed to parse local draft for photo cleanup:', e);
+          }
           localStorage.removeItem(key);
           show('Offline draft deleted.', 'success');
         }
