@@ -201,6 +201,15 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 .camera-btn { background: var(--zinc-100); color: var(--zinc-700); padding: 0.375rem 0.75rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid var(--border); cursor: pointer; box-shadow: none; font-weight: 500; }
 .camera-btn:hover:not(:disabled) { background: var(--zinc-200); color: var(--primary); }
 
+/* ── Admin form inputs (the .input-field class was referenced but never defined,
+   so these controls fell back to unstyled browser defaults) ── */
+.input-field {
+  padding: 0.35rem 0.625rem; border: 1px solid var(--zinc-300); border-radius: 4px;
+  font-size: 0.875rem; font-family: inherit; background: var(--white); color: var(--zinc-900);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.input-field:focus { outline: none; border-color: var(--zinc-900); box-shadow: 0 0 0 1px var(--zinc-900); }
+
 /* ── Issue / report / draft cards ── */
 .issue-card { background: var(--white); padding: 1rem; border-bottom: 1px solid var(--zinc-100); border-radius: 0; margin-bottom: 0; border-left: none; }
 .issue-card:last-child { border-bottom: none; }
@@ -285,7 +294,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
     min-height: 44px;
   }
   .form-group input, .form-group select, .form-group textarea,
-  .login-input, .filter-group select {
+  .login-input, .filter-group select, .input-field {
     min-height: 44px;
     font-size: 16px; /* prevents iOS zoom on focus */
   }
@@ -438,6 +447,17 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
     margin: 0.75rem;
     justify-content: center;
   }
+
+  /* Admin: unstyled create-user form inputs stack full width */
+  .input-field { width: 100%; }
+  .card form { flex-direction: column; align-items: stretch; }
+
+  /* Wide tables (Admin user list, etc.) scroll horizontally instead of
+     overflowing the viewport and dragging the whole layout out of alignment.
+     :has() lets the card that contains a table opt into horizontal scroll
+     without hidden-overflow clipping the columns. */
+  .card:has(table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .card:has(table) table { min-width: 560px; }
 }
 
 /* ── Medium screens (tablets) ── */
