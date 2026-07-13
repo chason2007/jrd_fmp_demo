@@ -60,6 +60,51 @@ const softServiceTypes = [
   { id: 6, displayName: "Specialized Maintenance" }
 ];
 
+// Pre-compiled list of all locations for the autocomplete search
+const flatLocationsList = [];
+
+// Parse Airport locations
+Object.entries(airportLocations).forEach(([floor, subLocs]) => {
+  Object.entries(subLocs).forEach(([subLoc, cats]) => {
+    Object.entries(cats).forEach(([cat, rooms]) => {
+      rooms.forEach((room) => {
+        flatLocationsList.push({
+          type: 'ZIA',
+          display: `ZIA: ${floor} | ${subLoc} | ${cat} | ${room.roomNumber} - ${room.roomName}`,
+          key: `ZIA|${floor}|${subLoc}|${cat}|${room.roomNumber}|${room.roomName}`,
+          searchStr: `zia zayed international airport ${floor} ${subLoc} ${cat} ${room.roomNumber} ${room.roomName}`.toLowerCase()
+        });
+      });
+    });
+  });
+});
+
+// Parse Business Park locations
+Object.entries(businessParkData).forEach(([floor, offices]) => {
+  Object.entries(offices).forEach(([officeNo, info]) => {
+    flatLocationsList.push({
+      type: 'BP',
+      display: `BP: Level ${floor} | ${info.displayName} | ${info.roomName}`,
+      key: `BP|${floor}|${officeNo}|${info.roomName}`,
+      searchStr: `bp business park level ${floor} ${info.displayName} ${info.roomName}`.toLowerCase()
+    });
+  });
+});
+
+// Add some common pre-set areas
+const commonFloors = ["Ground Level", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5"];
+const commonAreas = ["Public Area", "Hygiene Area", "Critical Area"];
+commonAreas.forEach((area) => {
+  commonFloors.forEach((floor) => {
+    flatLocationsList.push({
+      type: area,
+      display: `${area}: ${floor}`,
+      key: `Other|${area}|${floor}||`,
+      searchStr: `${area} other level ${floor}`.toLowerCase()
+    });
+  });
+});
+
 // Helper to convert files to base64
 const compressImage = async (file) => {
   return new Promise((resolve) => {
@@ -522,6 +567,12 @@ function AuditWorkspace({
 }) {
   const { show } = useToast();
   const [loading, setLoading] = useState(false);
+
+  // Quick Search vs Manual Cascades selection mode
+  const [useQuickSearch, setUseQuickSearch] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [customLocationName, setCustomLocationName] = useState('');
 
   // Soft service location picker states
   const [locationType, setLocationType] = useState('');
@@ -1262,207 +1313,351 @@ function AuditWorkspace({
       </div>
 
       {serviceCategory === 'soft' && (
-        <div className="velora-location-area">
-          <div className="velora-section-header" style={{ marginTop: 0 }}>
-            <h3><MapPin size={16} /> Location Details</h3>
-          </div>
-          <div className="velora-form-grid">
-            <div className="velora-input-group">
-              <label>Select Location</label>
-              <select value={locationType} onChange={(e) => { setLocationType(e.target.value); setLocationError(''); }}>
-                <option value="">Select Location Type</option>
-                <option value="ZIA">ZIA - Zayed International Airport</option>
-                <option value="BP">BP - Business Park</option>
-                <option value="Public Area">Public Area</option>
-                <option value="Hygiene Area">Hygiene Area</option>
-                <option value="Critical Area">Critical Area</option>
-              </select>
+        <div className="velora-location-area" style={{ border: '1.5px solid var(--zinc-300)', padding: '18px', borderRadius: 'var(--radius)', backgroundColor: 'var(--zinc-50)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', fontWeight: 600 }}><MapPin size={16} /> Location Details</h3>
+            <div style={{ display: 'flex', gap: '6px', backgroundColor: 'var(--zinc-200)', padding: '3px', borderRadius: '6px' }}>
+              <button
+                type="button"
+                className="velora-btn-text"
+                style={{ padding: '4px 12px', fontSize: '0.75rem', fontWeight: 600, borderRadius: '4px', border: 'none', cursor: 'pointer', backgroundColor: useQuickSearch ? 'var(--primary)' : 'transparent', color: useQuickSearch ? '#fff' : 'var(--zinc-700)' }}
+                onClick={() => setUseQuickSearch(true)}
+              >
+                Quick Search
+              </button>
+              <button
+                type="button"
+                className="velora-btn-text"
+                style={{ padding: '4px 12px', fontSize: '0.75rem', fontWeight: 600, borderRadius: '4px', border: 'none', cursor: 'pointer', backgroundColor: !useQuickSearch ? 'var(--primary)' : 'transparent', color: !useQuickSearch ? '#fff' : 'var(--zinc-700)' }}
+                onClick={() => setUseQuickSearch(false)}
+              >
+                Standard Selector
+              </button>
             </div>
           </div>
 
-          {/* Airport Details Selector Cascade */}
-          {locationType === 'ZIA' && (
-            <div style={locationError ? { marginTop: '16px', border: '1.5px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: '12px' } : { marginTop: '16px' }}>
-              {locationError && <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '10px' }}>{locationError}</div>}
-              <div className="velora-form-grid">
-                <div className="velora-input-group">
-                  <label>Floor / Level</label>
-                  <select value={ziaFloor} onChange={(e) => {
-                    setZiaFloor(e.target.value);
-                    setZiaSubLocation('');
-                    setZiaCategory('');
-                    setZiaRoomNumber('');
-                    setZiaRoomName('');
+          {useQuickSearch ? (
+            <div>
+              <div className="velora-input-group" style={{ position: 'relative', marginBottom: '16px' }}>
+                <label>Search and Add Location</label>
+                <input
+                  type="text"
+                  placeholder="Search ZIA rooms, BP offices, zones (e.g. 101, IT, Core Building, Level 2)..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    const query = e.target.value;
+                    setSearchQuery(query);
+                    if (query.trim().length >= 1) {
+                      const filtered = flatLocationsList.filter(item => 
+                        item.searchStr.includes(query.toLowerCase())
+                      ).slice(0, 8);
+                      setSearchResults(filtered);
+                    } else {
+                      setSearchResults([]);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '10px', fontSize: '0.9rem' }}
+                />
+                {searchResults.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#fff',
+                    border: '1.5px solid var(--zinc-300)',
+                    borderRadius: '0 0 var(--radius) var(--radius)',
+                    zIndex: 1000,
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                   }}>
-                    <option value="">Select Floor</option>
-                    {airportFloors.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
-                <div className="velora-input-group">
-                  <label>Sub Location</label>
-                  <select
-                    value={ziaSubLocation}
-                    onChange={(e) => {
-                      setZiaSubLocation(e.target.value);
-                      setZiaCategory('');
-                      setZiaRoomNumber('');
-                      setZiaRoomName('');
-                    }}
-                    disabled={!ziaFloor}
-                  >
-                    <option value="">Select Sub Location</option>
-                    {airportSubLocations.map(sl => <option key={sl} value={sl}>{sl}</option>)}
-                  </select>
-                </div>
-                <div className="velora-input-group">
-                  <label>Category</label>
-                  <select
-                    value={ziaCategory}
-                    onChange={(e) => {
-                      setZiaCategory(e.target.value);
-                      setZiaRoomNumber('');
-                      setZiaRoomName('');
-                    }}
-                    disabled={!ziaSubLocation}
-                  >
-                    <option value="">Select Category</option>
-                    {airportCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
+                    {searchResults.map((item, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--zinc-100)',
+                          fontSize: '0.82rem',
+                          color: '#27272a',
+                          textAlign: 'left'
+                        }}
+                        onClick={() => {
+                          if (selectedLocations.some(loc => loc.key === item.key)) {
+                            show('Location already added.', 'error');
+                          } else {
+                            setSelectedLocations([...selectedLocations, { key: item.key, locationType: item.type, displayName: item.display }]);
+                            setAuditResponses(prev => ({
+                              ...prev,
+                              [item.key]: prev[item.key] || { observations: [] }
+                            }));
+                            show(`Added ${item.display}`, 'success');
+                          }
+                          setSearchQuery('');
+                          setSearchResults([]);
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f4f4f5'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = ''}
+                      >
+                        {item.display}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="velora-form-grid" style={{ marginTop: '16px' }}>
-                <div className="velora-input-group">
-                  <label>Room Number</label>
-                  <select
-                    value={ziaRoomNumber}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setZiaRoomNumber(val);
-                      const roomObj = airportRooms.find(r => r.roomNumber === val);
-                      setZiaRoomName(roomObj ? roomObj.roomName : '');
-                    }}
-                    disabled={!ziaCategory}
-                  >
-                    <option value="">Select Room Number</option>
-                    {airportRooms.map(r => <option key={r.roomNumber} value={r.roomNumber}>{r.roomNumber}</option>)}
-                  </select>
-                </div>
-                <div className="velora-input-group">
-                  <label>Room Name</label>
+
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-end',
+                border: '1px dashed var(--zinc-400)',
+                borderRadius: 'var(--radius)',
+                padding: '12px',
+                marginTop: '16px',
+                backgroundColor: 'var(--zinc-100)',
+                flexWrap: 'wrap'
+              }}>
+                <div className="velora-input-group" style={{ flex: 1, marginBottom: 0, minWidth: '200px' }}>
+                  <label>Add a Custom Location manually</label>
                   <input
                     type="text"
-                    readOnly
-                    placeholder="Room name auto-populates"
-                    value={ziaRoomName}
-                    style={{ background: 'var(--zinc-100)' }}
+                    placeholder="e.g. VIP Lounge, General Lobby..."
+                    value={customLocationName}
+                    onChange={(e) => setCustomLocationName(e.target.value)}
                   />
                 </div>
+                <button
+                  type="button"
+                  className="velora-btn-primary"
+                  style={{ height: '38px', padding: '0 16px', fontSize: '0.85rem' }}
+                  onClick={() => {
+                    if (!customLocationName.trim()) {
+                      show('Please enter a custom location name.', 'error');
+                      return;
+                    }
+                    const name = customLocationName.trim();
+                    const key = `Other|Custom|||${name}`;
+                    const display = `Custom: ${name}`;
+
+                    if (selectedLocations.some(loc => loc.key === key)) {
+                      show('Location already added.', 'error');
+                    } else {
+                      setSelectedLocations([...selectedLocations, { key, locationType: 'Custom', displayName: display }]);
+                      setAuditResponses(prev => ({
+                        ...prev,
+                        [key]: prev[key] || { observations: [] }
+                      }));
+                      show(`Added ${display}`, 'success');
+                      setCustomLocationName('');
+                    }
+                  }}
+                >
+                  Add Custom
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Business Park Selector Cascade */}
-          {locationType === 'BP' && (
-            <div style={locationError ? { marginTop: '16px', border: '1.5px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: '12px' } : { marginTop: '16px' }}>
-              {locationError && <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '10px' }}>{locationError}</div>}
+          ) : (
+            <div>
               <div className="velora-form-grid">
                 <div className="velora-input-group">
-                  <label>Floor / Level</label>
-                  <select value={bpFloor} onChange={(e) => {
-                    setBpFloor(e.target.value);
-                    setBpOfficeNumber('');
-                    setBpRoomName('');
-                  }}>
-                    <option value="">Select Floor</option>
-                    {bpFloors.map(f => <option key={f} value={f}>Level {f}</option>)}
-                  </select>
-                </div>
-                <div className="velora-input-group">
-                  <label>Office Number / Area</label>
-                  <select
-                    value={bpOfficeNumber}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setBpOfficeNumber(val);
-                      setBpRoomName(businessParkData[bpFloor]?.[val]?.roomName || '');
-                    }}
-                    disabled={!bpFloor}
-                  >
-                    <option value="">Select Office/Area</option>
-                    {bpOffices.map(o => <option key={o} value={o}>{businessParkData[bpFloor][o].displayName}</option>)}
-                  </select>
-                </div>
-                <div className="velora-input-group">
-                  <label>Room Name</label>
-                  <input
-                    type="text"
-                    readOnly
-                    placeholder="Room name auto-populates"
-                    value={bpRoomName}
-                    style={{ background: 'var(--zinc-100)' }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Other Areas Selectors */}
-          {['Public Area', 'Hygiene Area', 'Critical Area'].includes(locationType) && (
-            <div style={locationError ? { marginTop: '16px', border: '1.5px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: '12px' } : { marginTop: '16px' }}>
-              {locationError && <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '10px' }}>{locationError}</div>}
-              <div className="velora-form-grid">
-                <div className="velora-input-group">
-                  <label>Site</label>
-                  <select value={otherSite} onChange={(e) => setOtherSite(e.target.value)}>
-                    <option value="">Select Site</option>
+                  <label>Select Location</label>
+                  <select value={locationType} onChange={(e) => { setLocationType(e.target.value); setLocationError(''); }}>
+                    <option value="">Select Location Type</option>
+                    <option value="ZIA">ZIA - Zayed International Airport</option>
+                    <option value="BP">BP - Business Park</option>
                     <option value="Public Area">Public Area</option>
                     <option value="Hygiene Area">Hygiene Area</option>
                     <option value="Critical Area">Critical Area</option>
                   </select>
                 </div>
-                <div className="velora-input-group">
-                  <label>Floor / Level</label>
-                  <select value={otherFloor} onChange={(e) => setOtherFloor(e.target.value)}>
-                    <option value="">Select Floor</option>
-                    <option value="Ground Level">Ground Level</option>
-                    <option value="Level 1">Level 1</option>
-                    <option value="Level 2">Level 2</option>
-                    <option value="Level 3">Level 3</option>
-                    <option value="Level 4">Level 4</option>
-                    <option value="Level 5">Level 5</option>
-                  </select>
-                </div>
               </div>
-              <div className="velora-form-grid" style={{ marginTop: '16px' }}>
-                <div className="velora-input-group">
-                  <label>Zone / Sub Area</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Zone A, Section 1"
-                    value={otherZone}
-                    onChange={(e) => setOtherZone(e.target.value)}
-                  />
+
+              {/* Airport Details Selector Cascade */}
+              {locationType === 'ZIA' && (
+                <div style={locationError ? { marginTop: '16px', border: '1.5px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: '12px' } : { marginTop: '16px' }}>
+                  {locationError && <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '10px' }}>{locationError}</div>}
+                  <div className="velora-form-grid">
+                    <div className="velora-input-group">
+                      <label>Floor / Level</label>
+                      <select value={ziaFloor} onChange={(e) => {
+                        setZiaFloor(e.target.value);
+                        setZiaSubLocation('');
+                        setZiaCategory('');
+                        setZiaRoomNumber('');
+                        setZiaRoomName('');
+                      }}>
+                        <option value="">Select Floor</option>
+                        {airportFloors.map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+                    <div className="velora-input-group">
+                      <label>Sub Location</label>
+                      <select
+                        value={ziaSubLocation}
+                        onChange={(e) => {
+                          setZiaSubLocation(e.target.value);
+                          setZiaCategory('');
+                          setZiaRoomNumber('');
+                          setZiaRoomName('');
+                        }}
+                        disabled={!ziaFloor}
+                      >
+                        <option value="">Select Sub Location</option>
+                        {airportSubLocations.map(sl => <option key={sl} value={sl}>{sl}</option>)}
+                      </select>
+                    </div>
+                    <div className="velora-input-group">
+                      <label>Category</label>
+                      <select
+                        value={ziaCategory}
+                        onChange={(e) => {
+                          setZiaCategory(e.target.value);
+                          setZiaRoomNumber('');
+                          setZiaRoomName('');
+                        }}
+                        disabled={!ziaSubLocation}
+                      >
+                        <option value="">Select Category</option>
+                        {airportCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="velora-form-grid" style={{ marginTop: '16px' }}>
+                    <div className="velora-input-group">
+                      <label>Room Number</label>
+                      <select
+                        value={ziaRoomNumber}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setZiaRoomNumber(val);
+                          const roomObj = airportRooms.find(r => r.roomNumber === val);
+                          setZiaRoomName(roomObj ? roomObj.roomName : '');
+                        }}
+                        disabled={!ziaCategory}
+                      >
+                        <option value="">Select Room Number</option>
+                        {airportRooms.map(r => <option key={r.roomNumber} value={r.roomNumber}>{r.roomNumber}</option>)}
+                      </select>
+                    </div>
+                    <div className="velora-input-group">
+                      <label>Room Name</label>
+                      <input
+                        type="text"
+                        readOnly
+                        placeholder="Room name auto-populates"
+                        value={ziaRoomName}
+                        style={{ background: 'var(--zinc-100)' }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="velora-input-group">
-                  <label>Specific Location Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Restroom 101, Corridor B"
-                    value={otherLocationName}
-                    onChange={(e) => setOtherLocationName(e.target.value)}
-                  />
+              )}
+
+              {/* Business Park Selector Cascade */}
+              {locationType === 'BP' && (
+                <div style={locationError ? { marginTop: '16px', border: '1.5px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: '12px' } : { marginTop: '16px' }}>
+                  {locationError && <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '10px' }}>{locationError}</div>}
+                  <div className="velora-form-grid">
+                    <div className="velora-input-group">
+                      <label>Floor / Level</label>
+                      <select value={bpFloor} onChange={(e) => {
+                        setBpFloor(e.target.value);
+                        setBpOfficeNumber('');
+                        setBpRoomName('');
+                      }}>
+                        <option value="">Select Floor</option>
+                        {bpFloors.map(f => <option key={f} value={f}>Level {f}</option>)}
+                      </select>
+                    </div>
+                    <div className="velora-input-group">
+                      <label>Office Number / Area</label>
+                      <select
+                        value={bpOfficeNumber}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setBpOfficeNumber(val);
+                          setBpRoomName(businessParkData[bpFloor]?.[val]?.roomName || '');
+                        }}
+                        disabled={!bpFloor}
+                      >
+                        <option value="">Select Office/Area</option>
+                        {bpOffices.map(o => <option key={o} value={o}>{businessParkData[bpFloor][o].displayName}</option>)}
+                      </select>
+                    </div>
+                    <div className="velora-input-group">
+                      <label>Room Name</label>
+                      <input
+                        type="text"
+                        readOnly
+                        placeholder="Room name auto-populates"
+                        value={bpRoomName}
+                        style={{ background: 'var(--zinc-100)' }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Other Areas Selectors */}
+              {['Public Area', 'Hygiene Area', 'Critical Area'].includes(locationType) && (
+                <div style={locationError ? { marginTop: '16px', border: '1.5px solid var(--danger)', borderRadius: 'var(--radius-sm)', padding: '12px' } : { marginTop: '16px' }}>
+                  {locationError && <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '10px' }}>{locationError}</div>}
+                  <div className="velora-form-grid">
+                    <div className="velora-input-group">
+                      <label>Site</label>
+                      <select value={otherSite} onChange={(e) => setOtherSite(e.target.value)}>
+                        <option value="">Select Site</option>
+                        <option value="Public Area">Public Area</option>
+                        <option value="Hygiene Area">Hygiene Area</option>
+                        <option value="Critical Area">Critical Area</option>
+                      </select>
+                    </div>
+                    <div className="velora-input-group">
+                      <label>Floor / Level</label>
+                      <select value={otherFloor} onChange={(e) => setOtherFloor(e.target.value)}>
+                        <option value="">Select Floor</option>
+                        <option value="Ground Level">Ground Level</option>
+                        <option value="Level 1">Level 1</option>
+                        <option value="Level 2">Level 2</option>
+                        <option value="Level 3">Level 3</option>
+                        <option value="Level 4">Level 4</option>
+                        <option value="Level 5">Level 5</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="velora-form-grid" style={{ marginTop: '16px' }}>
+                    <div className="velora-input-group">
+                      <label>Zone / Sub Area</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Zone A, Section 1"
+                        value={otherZone}
+                        onChange={(e) => setOtherZone(e.target.value)}
+                      />
+                    </div>
+                    <div className="velora-input-group">
+                      <label>Specific Location Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Restroom 101, Corridor B"
+                        value={otherLocationName}
+                        onChange={(e) => setOtherLocationName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                className="velora-btn-secondary"
+                style={{ marginTop: '16px' }}
+                onClick={addLocation}
+              >
+                <Plus size={16} /> Add This Location
+              </button>
             </div>
           )}
-
-          <button
-            className="velora-btn-secondary"
-            style={{ marginTop: '16px' }}
-            onClick={addLocation}
-          >
-            <Plus size={16} /> Add This Location
-          </button>
         </div>
       )}
 
