@@ -86,6 +86,7 @@ const compressImage = async (file) => {
       };
       img.onerror = () => resolve(null);
     };
+    reader.onerror = () => resolve(null);
   });
 };
 
@@ -676,86 +677,182 @@ function AuditWorkspace({
 
   // Add Observation to checklist
   const addObservation = (locationKey) => {
-    const responsesCopy = { ...auditResponses };
-    if (!responsesCopy[locationKey]) {
-      responsesCopy[locationKey] = { observations: [] };
-    }
+    setAuditResponses((prev) => {
+      const copy = { ...prev };
+      if (!copy[locationKey]) {
+        copy[locationKey] = { observations: [] };
+      } else {
+        copy[locationKey] = { ...copy[locationKey] };
+      }
 
-    const newObservation = {
-      id: Date.now() + Math.random(),
-      floors: { response: null, comment: '', images: [] },
-      furniture: { response: null, comment: '', images: [] },
-      walls: { response: null, comment: '', images: [] }
-    };
+      const newObservation = {
+        id: Date.now() + Math.random(),
+        floors: { response: null, comment: '', images: [] },
+        furniture: { response: null, comment: '', images: [] },
+        walls: { response: null, comment: '', images: [] }
+      };
 
-    responsesCopy[locationKey].observations.push(newObservation);
-    setAuditResponses(responsesCopy);
+      copy[locationKey].observations = [...(copy[locationKey].observations || []), newObservation];
+      return copy;
+    });
   };
 
   const removeObservation = (locationKey, obsId) => {
-    const responsesCopy = { ...auditResponses };
-    const list = responsesCopy[locationKey]?.observations || [];
-    responsesCopy[locationKey].observations = list.filter(o => o.id !== obsId);
-    setAuditResponses(responsesCopy);
+    setAuditResponses((prev) => {
+      const copy = { ...prev };
+      if (!copy[locationKey]) return prev;
+      copy[locationKey] = {
+        ...copy[locationKey],
+        observations: (copy[locationKey].observations || []).filter(o => o.id !== obsId)
+      };
+      return copy;
+    });
   };
 
   const updateItemResponse = (locationKey, obsId, itemKey, response) => {
-    const responsesCopy = { ...auditResponses };
-    const obs = responsesCopy[locationKey]?.observations.find(o => o.id === obsId);
-    if (obs) {
-      obs[itemKey].response = response;
-    }
-    setAuditResponses(responsesCopy);
+    setAuditResponses((prev) => {
+      const copy = { ...prev };
+      if (!copy[locationKey]?.observations) return prev;
+      copy[locationKey] = { ...copy[locationKey] };
+      copy[locationKey].observations = copy[locationKey].observations.map(obs => {
+        if (obs.id === obsId) {
+          return {
+            ...obs,
+            [itemKey]: {
+              ...obs[itemKey],
+              response
+            }
+          };
+        }
+        return obs;
+      });
+      return copy;
+    });
   };
 
   const updateItemComment = (locationKey, obsId, itemKey, comment) => {
-    const responsesCopy = { ...auditResponses };
-    const obs = responsesCopy[locationKey]?.observations.find(o => o.id === obsId);
-    if (obs) {
-      obs[itemKey].comment = comment;
-    }
-    setAuditResponses(responsesCopy);
+    setAuditResponses((prev) => {
+      const copy = { ...prev };
+      if (!copy[locationKey]?.observations) return prev;
+      copy[locationKey] = { ...copy[locationKey] };
+      copy[locationKey].observations = copy[locationKey].observations.map(obs => {
+        if (obs.id === obsId) {
+          return {
+            ...obs,
+            [itemKey]: {
+              ...obs[itemKey],
+              comment
+            }
+          };
+        }
+        return obs;
+      });
+      return copy;
+    });
   };
 
   const handleFileUpload = async (locationKey, obsId, itemKey, files) => {
     if (!files || files.length === 0) return;
-    const responsesCopy = { ...auditResponses };
-    const obs = responsesCopy[locationKey]?.observations.find(o => o.id === obsId);
-    if (!obs) return;
 
+    const uploadedImages = [];
     for (let file of Array.from(files)) {
-      if (obs[itemKey].images.length >= 5) {
-        show('Max 5 images allowed per category.', 'error');
-        break;
-      }
       const base64 = await compressImage(file);
       if (base64) {
-        obs[itemKey].images.push(base64);
+        uploadedImages.push(base64);
       }
     }
-    setAuditResponses(responsesCopy);
+
+    if (uploadedImages.length === 0) return;
+
+    setAuditResponses((prev) => {
+      const copy = { ...prev };
+      if (!copy[locationKey]?.observations) return prev;
+      copy[locationKey] = { ...copy[locationKey] };
+
+      let limitReached = false;
+      copy[locationKey].observations = copy[locationKey].observations.map(obs => {
+        if (obs.id === obsId) {
+          const currentImages = obs[itemKey]?.images || [];
+          if (currentImages.length >= 5) {
+            limitReached = true;
+            return obs;
+          }
+          const combined = [...currentImages, ...uploadedImages].slice(0, 5);
+          if (currentImages.length + uploadedImages.length > 5) {
+            limitReached = true;
+          }
+          return {
+            ...obs,
+            [itemKey]: {
+              ...obs[itemKey],
+              images: combined
+            }
+          };
+        }
+        return obs;
+      });
+
+      if (limitReached) {
+        show('Max 5 images allowed per category.', 'error');
+      }
+      return copy;
+    });
   };
 
   const removeImage = (locationKey, obsId, itemKey, imgIndex) => {
-    const responsesCopy = { ...auditResponses };
-    const obs = responsesCopy[locationKey]?.observations.find(o => o.id === obsId);
-    if (obs) {
-      obs[itemKey].images.splice(imgIndex, 1);
-    }
-    setAuditResponses(responsesCopy);
+    setAuditResponses((prev) => {
+      const copy = { ...prev };
+      if (!copy[locationKey]?.observations) return prev;
+      copy[locationKey] = { ...copy[locationKey] };
+      copy[locationKey].observations = copy[locationKey].observations.map(obs => {
+        if (obs.id === obsId) {
+          const nextImages = (obs[itemKey].images || []).filter((_, idx) => idx !== imgIndex);
+          return {
+            ...obs,
+            [itemKey]: {
+              ...obs[itemKey],
+              images: nextImages
+            }
+          };
+        }
+        return obs;
+      });
+      return copy;
+    });
   };
 
   // Add Camera Image to Checklist Item
   const handleAddCameraPhoto = (locationKey, obsId, itemKey) => {
     startCamera((base64Image) => {
-      const responsesCopy = { ...auditResponses };
-      const obs = responsesCopy[locationKey]?.observations.find(o => o.id === obsId);
-      if (obs && obs[itemKey].images.length < 5) {
-        obs[itemKey].images.push(base64Image);
-        setAuditResponses(responsesCopy);
-      } else {
-        show('Max 5 images allowed per category.', 'error');
-      }
+      setAuditResponses((prev) => {
+        const copy = { ...prev };
+        if (!copy[locationKey]?.observations) return prev;
+        copy[locationKey] = { ...copy[locationKey] };
+
+        let limitReached = false;
+        copy[locationKey].observations = copy[locationKey].observations.map(obs => {
+          if (obs.id === obsId) {
+            const currentImages = obs[itemKey]?.images || [];
+            if (currentImages.length >= 5) {
+              limitReached = true;
+              return obs;
+            }
+            return {
+              ...obs,
+              [itemKey]: {
+                ...obs[itemKey],
+                images: [...currentImages, base64Image]
+              }
+            };
+          }
+          return obs;
+        });
+
+        if (limitReached) {
+          show('Max 5 images allowed per category.', 'error');
+        }
+        return copy;
+      });
     });
   };
 
@@ -782,6 +879,11 @@ function AuditWorkspace({
     }
   };
 
+  // Helper to check if observation is completely empty
+  const isObservationEmpty = (obs) => {
+    return !obs.floors?.response && !obs.furniture?.response && !obs.walls?.response;
+  };
+
   // Submit and Generate PDF
   const submitAudit = async () => {
     // Validate responses
@@ -790,9 +892,20 @@ function AuditWorkspace({
       return;
     }
 
+    // Filter out completely empty observations for validation and API payload
+    const filteredResponses = {};
+    for (const key of Object.keys(auditResponses)) {
+      const locObs = auditResponses[key]?.observations || [];
+      const nonEmptyObs = locObs.filter(obs => !isObservationEmpty(obs));
+      filteredResponses[key] = {
+        ...auditResponses[key],
+        observations: nonEmptyObs
+      };
+    }
+
     let valid = true;
     for (const loc of selectedLocations) {
-      const responses = auditResponses[loc.key];
+      const responses = filteredResponses[loc.key];
       if (!responses || !responses.observations || responses.observations.length === 0) {
         show(`Please add at least one observation for ${loc.displayName}`, 'error');
         valid = false;
@@ -820,7 +933,7 @@ function AuditWorkspace({
         auditDate,
         auditorName,
         locations: selectedLocations,
-        responses: auditResponses,
+        responses: filteredResponses,
         notes,
         draftId
       };
@@ -837,7 +950,7 @@ function AuditWorkspace({
         let totalItems = 0;
         let scoreSum = 0;
         selectedLocations.forEach(loc => {
-          const locObs = auditResponses[loc.key]?.observations || [];
+          const locObs = filteredResponses[loc.key]?.observations || [];
           locObs.forEach(obs => {
             ['floors', 'furniture', 'walls'].forEach(item => {
               if (obs[item].response) {
@@ -958,7 +1071,7 @@ function AuditWorkspace({
 
         let obsCount = 1;
         selectedLocations.forEach((loc) => {
-          const locObs = auditResponses[loc.key]?.observations || [];
+          const locObs = filteredResponses[loc.key]?.observations || [];
           if (locObs.length === 0) return;
 
           if (y > 245) {
@@ -1602,8 +1715,11 @@ function AuditWorkspace({
                             <input
                               type="file"
                               multiple
-                              accept="image/*"
-                              onChange={(e) => handleFileUpload(selectedLocations[currentEditingLocation].key, obs.id, 'floors', e.target.files)}
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => {
+                                handleFileUpload(selectedLocations[currentEditingLocation].key, obs.id, 'floors', e.target.files);
+                                e.target.value = '';
+                              }}
                             />
                             <button
                               className="velora-btn-secondary"
@@ -1675,8 +1791,11 @@ function AuditWorkspace({
                             <input
                               type="file"
                               multiple
-                              accept="image/*"
-                              onChange={(e) => handleFileUpload(selectedLocations[currentEditingLocation].key, obs.id, 'furniture', e.target.files)}
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => {
+                                handleFileUpload(selectedLocations[currentEditingLocation].key, obs.id, 'furniture', e.target.files);
+                                e.target.value = '';
+                              }}
                             />
                             <button
                               className="velora-btn-secondary"
@@ -1748,8 +1867,11 @@ function AuditWorkspace({
                             <input
                               type="file"
                               multiple
-                              accept="image/*"
-                              onChange={(e) => handleFileUpload(selectedLocations[currentEditingLocation].key, obs.id, 'walls', e.target.files)}
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => {
+                                handleFileUpload(selectedLocations[currentEditingLocation].key, obs.id, 'walls', e.target.files);
+                                e.target.value = '';
+                              }}
                             />
                             <button
                               className="velora-btn-secondary"
