@@ -328,6 +328,7 @@ model VeloraPdfReport {
   auditNumber   String?  @map("audit_number") @db.VarChar(50)
   fileName      String   @map("file_name") @db.VarChar(200)
   filePath      String   @map("file_path") @db.VarChar(500)
+  pdfContent    String?  @map("pdf_content") @db.Text
   title         String?  @db.VarChar(200)
   generatedDate DateTime @default(now()) @map("generated_date")
   createdAt     DateTime @default(now()) @map("created_at")

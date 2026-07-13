@@ -190,7 +190,7 @@ export async function approveResetRequest(req, res) {
     include: { user: true }
   });
 
-  if (!request || request.status !== 'PENDING') {
+  if (request?.status !== 'PENDING') {
     throw new HttpError(404, 'Pending request not found.');
   }
 

@@ -709,7 +709,8 @@ function AuditWorkspace({
     });
   };
 
-  const updateItemResponse = (locationKey, obsId, itemKey, response) => {
+  // Centralized helper to update an observation checklist item immutably
+  const updateObservationItem = (locationKey, obsId, itemKey, updateFn) => {
     setAuditResponses((prev) => {
       const copy = { ...prev };
       if (!copy[locationKey]?.observations) return prev;
@@ -718,10 +719,7 @@ function AuditWorkspace({
         if (obs.id === obsId) {
           return {
             ...obs,
-            [itemKey]: {
-              ...obs[itemKey],
-              response
-            }
+            [itemKey]: updateFn(obs[itemKey] || { response: null, comment: '', images: [] })
           };
         }
         return obs;
@@ -730,32 +728,31 @@ function AuditWorkspace({
     });
   };
 
+  const updateItemResponse = (locationKey, obsId, itemKey, response) => {
+    updateObservationItem(locationKey, obsId, itemKey, (item) => ({ ...item, response }));
+  };
+
   const updateItemComment = (locationKey, obsId, itemKey, comment) => {
-    setAuditResponses((prev) => {
-      const copy = { ...prev };
-      if (!copy[locationKey]?.observations) return prev;
-      copy[locationKey] = { ...copy[locationKey] };
-      copy[locationKey].observations = copy[locationKey].observations.map(obs => {
-        if (obs.id === obsId) {
-          return {
-            ...obs,
-            [itemKey]: {
-              ...obs[itemKey],
-              comment
-            }
-          };
-        }
-        return obs;
-      });
-      return copy;
-    });
+    updateObservationItem(locationKey, obsId, itemKey, (item) => ({ ...item, comment }));
   };
 
   const handleFileUpload = async (locationKey, obsId, itemKey, files) => {
     if (!files || files.length === 0) return;
 
+    const obs = auditResponses[locationKey]?.observations.find(o => o.id === obsId);
+    if (!obs) return;
+    const currentCount = (obs[itemKey]?.images || []).length;
+    if (currentCount >= 5) {
+      show('Max 5 images allowed per category.', 'error');
+      return;
+    }
+
     const uploadedImages = [];
     for (let file of Array.from(files)) {
+      if (currentCount + uploadedImages.length >= 5) {
+        show('Max 5 images allowed per category.', 'error');
+        break;
+      }
       const base64 = await compressImage(file);
       if (base64) {
         uploadedImages.push(base64);
@@ -764,95 +761,32 @@ function AuditWorkspace({
 
     if (uploadedImages.length === 0) return;
 
-    setAuditResponses((prev) => {
-      const copy = { ...prev };
-      if (!copy[locationKey]?.observations) return prev;
-      copy[locationKey] = { ...copy[locationKey] };
-
-      let limitReached = false;
-      copy[locationKey].observations = copy[locationKey].observations.map(obs => {
-        if (obs.id === obsId) {
-          const currentImages = obs[itemKey]?.images || [];
-          if (currentImages.length >= 5) {
-            limitReached = true;
-            return obs;
-          }
-          const combined = [...currentImages, ...uploadedImages].slice(0, 5);
-          if (currentImages.length + uploadedImages.length > 5) {
-            limitReached = true;
-          }
-          return {
-            ...obs,
-            [itemKey]: {
-              ...obs[itemKey],
-              images: combined
-            }
-          };
-        }
-        return obs;
-      });
-
-      if (limitReached) {
-        show('Max 5 images allowed per category.', 'error');
-      }
-      return copy;
-    });
+    updateObservationItem(locationKey, obsId, itemKey, (item) => ({
+      ...item,
+      images: [...(item.images || []), ...uploadedImages].slice(0, 5)
+    }));
   };
 
   const removeImage = (locationKey, obsId, itemKey, imgIndex) => {
-    setAuditResponses((prev) => {
-      const copy = { ...prev };
-      if (!copy[locationKey]?.observations) return prev;
-      copy[locationKey] = { ...copy[locationKey] };
-      copy[locationKey].observations = copy[locationKey].observations.map(obs => {
-        if (obs.id === obsId) {
-          const nextImages = (obs[itemKey].images || []).filter((_, idx) => idx !== imgIndex);
-          return {
-            ...obs,
-            [itemKey]: {
-              ...obs[itemKey],
-              images: nextImages
-            }
-          };
-        }
-        return obs;
-      });
-      return copy;
-    });
+    updateObservationItem(locationKey, obsId, itemKey, (item) => ({
+      ...item,
+      images: (item.images || []).filter((_, idx) => idx !== imgIndex)
+    }));
   };
 
   // Add Camera Image to Checklist Item
   const handleAddCameraPhoto = (locationKey, obsId, itemKey) => {
+    const obs = auditResponses[locationKey]?.observations.find(o => o.id === obsId);
+    if (!obs) return;
+    if ((obs[itemKey]?.images || []).length >= 5) {
+      show('Max 5 images allowed per category.', 'error');
+      return;
+    }
     startCamera((base64Image) => {
-      setAuditResponses((prev) => {
-        const copy = { ...prev };
-        if (!copy[locationKey]?.observations) return prev;
-        copy[locationKey] = { ...copy[locationKey] };
-
-        let limitReached = false;
-        copy[locationKey].observations = copy[locationKey].observations.map(obs => {
-          if (obs.id === obsId) {
-            const currentImages = obs[itemKey]?.images || [];
-            if (currentImages.length >= 5) {
-              limitReached = true;
-              return obs;
-            }
-            return {
-              ...obs,
-              [itemKey]: {
-                ...obs[itemKey],
-                images: [...currentImages, base64Image]
-              }
-            };
-          }
-          return obs;
-        });
-
-        if (limitReached) {
-          show('Max 5 images allowed per category.', 'error');
-        }
-        return copy;
-      });
+      updateObservationItem(locationKey, obsId, itemKey, (item) => ({
+        ...item,
+        images: [...(item.images || []), base64Image]
+      }));
     });
   };
 

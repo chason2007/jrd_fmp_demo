@@ -93,7 +93,7 @@ export async function refresh(req, res) {
   }
 
   const user = await prisma.user.findUnique({ where: { id: existing.userId } });
-  if (!user || !user.isActive) {
+  if (!user?.isActive) {
     await prisma.refreshToken.updateMany({
       where: { familyId: existing.familyId, revokedAt: null },
       data: { revokedAt: new Date() },

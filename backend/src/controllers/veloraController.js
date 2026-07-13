@@ -22,49 +22,46 @@ const stamp = () => {
 const rand = (bytes) => crypto.randomBytes(bytes).toString('hex').toUpperCase();
 
 export const newAuditNumber = () => `AUD-${stamp()}-${rand(3)}`;
-export const newDraftCode = () => `DRFT-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+export const newDraftCode = () => `DRFT-${Date.now()}-${rand(2)}`;
 export const newReportNumber = () => `RPT-${stamp()}-${rand(3)}`;
 export const newPdfReportNumber = () => `PDF-${stamp()}-${rand(3)}`;
+
+// Helper to calculate score for a single observation
+function getObservationScore(observation) {
+  let scoreSum = 0;
+  let itemsCount = 0;
+  const items = ['floors', 'furniture', 'walls'];
+  for (const item of items) {
+    const resp = observation?.[item]?.response;
+    if (resp) {
+      itemsCount++;
+      if (resp === 'Acceptable') {
+        scoreSum += 100;
+      } else if (resp === 'Needs Improvement') {
+        scoreSum += 50;
+      }
+    }
+  }
+  return { scoreSum, itemsCount };
+}
 
 // Calculate Velora audit score
 function calculateScore(responses) {
   let total = 0;
   let count = 0;
 
-  if (Array.isArray(responses)) {
-    for (const locationData of responses) {
-      if (locationData && Array.isArray(locationData.observations)) {
-        for (const observation of locationData.observations) {
-          const items = ['floors', 'furniture', 'walls'];
-          for (const item of items) {
-            if (observation[item] && observation[item].response) {
-              count++;
-              const resp = observation[item].response;
-              if (resp === 'Acceptable') total += 100;
-              else if (resp === 'Needs Improvement') total += 50;
-              else if (resp === 'Unacceptable') total += 0;
-            }
-          }
-        }
-      }
+  const locations = Array.isArray(responses)
+    ? responses
+    : (responses && typeof responses === 'object' ? Object.values(responses) : []);
+
+  for (const loc of locations) {
+    if (!loc || !Array.isArray(loc.observations)) {
+      continue;
     }
-  } else if (responses && typeof responses === 'object') {
-    for (const key of Object.keys(responses)) {
-      const locationData = responses[key];
-      if (locationData && Array.isArray(locationData.observations)) {
-        for (const observation of locationData.observations) {
-          const items = ['floors', 'furniture', 'walls'];
-          for (const item of items) {
-            if (observation[item] && observation[item].response) {
-              count++;
-              const resp = observation[item].response;
-              if (resp === 'Acceptable') total += 100;
-              else if (resp === 'Needs Improvement') total += 50;
-              else if (resp === 'Unacceptable') total += 0;
-            }
-          }
-        }
-      }
+    for (const obs of loc.observations) {
+      const { scoreSum, itemsCount } = getObservationScore(obs);
+      total += scoreSum;
+      count += itemsCount;
     }
   }
 
@@ -320,6 +317,7 @@ export async function savePdfReport(req, res) {
       auditNumber,
       fileName,
       filePath,
+      pdfContent: base64Content,
       title: title || `Audit Report ${auditNumber}`,
     },
   });
@@ -349,12 +347,18 @@ export async function downloadPdfReport(req, res) {
   const report = await prisma.veloraPdfReport.findUnique({ where: { id } });
   if (!report) throw new HttpError(404, 'PDF report not found.');
 
-  if (!isInsidePdfDir(report.filePath) || !fs.existsSync(report.filePath)) {
-    throw new HttpError(404, 'PDF file not found on disk.');
-  }
-
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${report.reportNumber}.pdf"`);
+
+  if (!isInsidePdfDir(report.filePath) || !fs.existsSync(report.filePath)) {
+    if (report.pdfContent) {
+      const buffer = Buffer.from(report.pdfContent, 'base64');
+      res.send(buffer);
+      return;
+    }
+    throw new HttpError(404, 'PDF file not found.');
+  }
+
   fs.createReadStream(report.filePath).pipe(res);
 }
 

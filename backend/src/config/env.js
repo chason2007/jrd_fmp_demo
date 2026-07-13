@@ -42,10 +42,14 @@ export const env = parsed.data;
 export const corsOrigins = env.CORS_ORIGINS.split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
 
 // "false"/"true"/<number-of-hops> → Express trust-proxy value.
+// Always returns a function type for consistency.
 export const trustProxy = (() => {
   const v = env.TRUST_PROXY;
-  if (v === 'false') return false;
-  if (v === 'true') return true;
+  if (v === 'true') return () => true;
+  if (v === 'false') return () => false;
   const n = Number(v);
-  return Number.isFinite(n) ? n : false;
+  if (Number.isFinite(n)) {
+    return (ip, i) => i < n;
+  }
+  return () => false;
 })();
