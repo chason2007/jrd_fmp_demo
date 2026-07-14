@@ -45,6 +45,30 @@ function getObservationScore(observation) {
   return { scoreSum, itemsCount };
 }
 
+// Integrity: a non-compliant item (Needs Improvement / Unacceptable) must carry
+// evidence — a remark AND at least one photo. Throws HttpError(400) if not.
+// Enforced here so the rule holds even if the client is bypassed.
+function assertNonComplianceEvidence(responses) {
+  const locations = Array.isArray(responses)
+    ? responses
+    : (responses && typeof responses === 'object' ? Object.values(responses) : []);
+  let missing = 0;
+  for (const loc of locations) {
+    if (!loc || !Array.isArray(loc.observations)) continue;
+    for (const obs of loc.observations) {
+      for (const key of ['floors', 'furniture', 'walls']) {
+        const it = obs?.[key];
+        if (it && (it.response === 'Needs Improvement' || it.response === 'Unacceptable')) {
+          if (!String(it.comment || '').trim() || !(Array.isArray(it.images) ? it.images : []).length) missing += 1;
+        }
+      }
+    }
+  }
+  if (missing) {
+    throw new HttpError(400, `Every non-compliant item (Needs Improvement / Unacceptable) requires a remark and at least one photo. ${missing} item(s) are missing evidence.`);
+  }
+}
+
 // Calculate Velora audit score
 function calculateScore(responses) {
   let total = 0;
@@ -91,8 +115,10 @@ export async function getServiceTypes(req, res) {
 export async function saveAudit(req, res) {
   const body = req.body;
   const userId = req.user.id;
-  const auditNo = newAuditNumber();
 
+  assertNonComplianceEvidence(body.responses);
+
+  const auditNo = newAuditNumber();
   const score = calculateScore(body.responses);
   let rating = 'poor';
   if (score >= 90) rating = 'excellent';

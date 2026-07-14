@@ -110,6 +110,8 @@ Object.entries(businessParkData).forEach(([floor, offices]) => {
 // Add some common pre-set areas
 const commonFloors = ["Ground Level", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5"];
 const commonAreas = ["Public Area", "Hygiene Area", "Critical Area"];
+// Checklist item labels, used in evidence-requirement validation messages.
+const VELORA_ITEM_LABELS = { floors: 'Floors & Surfaces', furniture: 'Furniture & Blinds', walls: 'Walls, Doors & Windows' };
 commonAreas.forEach((area) => {
   commonFloors.forEach((floor) => {
     flatLocationsList.push({
@@ -900,6 +902,19 @@ function AuditWorkspace({
           valid = false;
           break;
         }
+        // Non-compliant items (Needs Improvement / Unacceptable) require evidence:
+        // a remark AND at least one photo.
+        for (const key of ['floors', 'furniture', 'walls']) {
+          const it = obs[key] || {};
+          if (['Needs Improvement', 'Unacceptable'].includes(it.response)) {
+            if (!String(it.comment || '').trim() || !(it.images || []).length) {
+              show(`${VELORA_ITEM_LABELS[key]} in Observation #${i + 1} at ${loc.displayName} is marked "${it.response}" — a remark and at least one photo are required.`, 'error');
+              valid = false;
+              break;
+            }
+          }
+        }
+        if (!valid) break;
       }
       if (!valid) break;
     }
@@ -1826,7 +1841,7 @@ function AuditWorkspace({
                     {['Needs Improvement', 'Unacceptable'].includes(obs.floors.response) && (
                       <div className="velora-defect-fields">
                         <div className="velora-input-group">
-                          <label>Observation / Comment</label>
+                          <label>Observation / Comment (required)</label>
                           <textarea
                             rows={2}
                             placeholder="Describe floor defect..."
@@ -1835,7 +1850,7 @@ function AuditWorkspace({
                           />
                         </div>
                         <div className="velora-input-group">
-                          <label>Evidence Photos (Max 5)</label>
+                          <label>Evidence Photos (required, max 5)</label>
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                             <input
                               type="file"
@@ -1902,7 +1917,7 @@ function AuditWorkspace({
                     {['Needs Improvement', 'Unacceptable'].includes(obs.furniture.response) && (
                       <div className="velora-defect-fields">
                         <div className="velora-input-group">
-                          <label>Observation / Comment</label>
+                          <label>Observation / Comment (required)</label>
                           <textarea
                             rows={2}
                             placeholder="Describe furniture defect..."
@@ -1911,7 +1926,7 @@ function AuditWorkspace({
                           />
                         </div>
                         <div className="velora-input-group">
-                          <label>Evidence Photos (Max 5)</label>
+                          <label>Evidence Photos (required, max 5)</label>
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                             <input
                               type="file"
@@ -1978,7 +1993,7 @@ function AuditWorkspace({
                     {['Needs Improvement', 'Unacceptable'].includes(obs.walls.response) && (
                       <div className="velora-defect-fields">
                         <div className="velora-input-group">
-                          <label>Observation / Comment</label>
+                          <label>Observation / Comment (required)</label>
                           <textarea
                             rows={2}
                             placeholder="Describe wall defect..."
@@ -1987,7 +2002,7 @@ function AuditWorkspace({
                           />
                         </div>
                         <div className="velora-input-group">
-                          <label>Evidence Photos (Max 5)</label>
+                          <label>Evidence Photos (required, max 5)</label>
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                             <input
                               type="file"

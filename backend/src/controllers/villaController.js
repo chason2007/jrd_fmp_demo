@@ -69,6 +69,17 @@ export async function servePhoto(req, res) {
 export async function saveInspection(req, res) {
   const body = req.body;
   const userId = req.user.id;
+
+  // Integrity: each snag is a non-compliance and must carry evidence — a remark
+  // AND at least one photo. Enforced here so the rule holds even if the client
+  // is bypassed.
+  const missingEvidence = (body.issues || []).filter(
+    (iss) => !String(iss?.comment || '').trim() || !(Array.isArray(iss?.photoIds) ? iss.photoIds : []).length,
+  );
+  if (missingEvidence.length) {
+    throw new HttpError(400, `Every defect requires a remark and at least one photo. ${missingEvidence.length} defect(s) are missing evidence.`);
+  }
+
   const auditCode = newAuditCode(body.propertyNumber);
 
   const result = await prisma.$transaction(async (tx) => {

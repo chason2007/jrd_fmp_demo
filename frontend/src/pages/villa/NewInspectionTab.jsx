@@ -222,9 +222,15 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
     for (const k of required) {
       if (!defect[k].trim()) errors[k] = `${FIELD_LABELS[k]} is required.`;
     }
+    // A snag is a non-compliance: it must carry a remark AND at least one photo.
+    if (!defect.comment.trim()) errors.comment = 'A remark is required for a defect.';
     if (Object.keys(errors).length) {
       setDefectErrors(errors);
       show('Please fill all required defect fields.', 'error');
+      return;
+    }
+    if (photos.length === 0) {
+      show('At least one photo is required as evidence for each defect.', 'error');
       return;
     }
     setDefectErrors({});
@@ -279,6 +285,14 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
     }
     if (issues.length === 0) {
       show('Add at least one defect before completing.', 'error');
+      return;
+    }
+    // Every defect must carry evidence (covers defects from an older draft).
+    const missingEvidence = issues.filter(
+      (iss) => !String(iss.comment || '').trim() || !(iss.photoIds || []).length,
+    ).length;
+    if (missingEvidence) {
+      show(`Every defect needs a remark and at least one photo. ${missingEvidence} defect(s) are missing evidence.`, 'error');
       return;
     }
     setBusy(true);
@@ -391,8 +405,9 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
                   <FieldError message={defectErrors.spotDesc} />
                 </div>
                 <div className="form-group">
-                  <label>Inspector Remarks / Notes</label>
-                  <textarea rows={2} value={defect.comment} onChange={setDef('comment')} placeholder="Additional details, recommendations..." maxLength={2000} />
+                  <label className="required">Inspector Remarks / Notes</label>
+                  <textarea rows={2} value={defect.comment} onChange={setDef('comment')} placeholder="Additional details, recommendations..." maxLength={2000} style={defectErrors.comment ? { borderColor: 'var(--danger)' } : undefined} />
+                  <FieldError message={defectErrors.comment} />
                 </div>
                 <PhotoCapture
                   value={photos}
@@ -401,8 +416,8 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
                   fetchUrl={fetchPhotoUrl}
                   max={5}
                   onLightbox={onLightbox}
-                  label="Photos (MAX 5 per defect)"
-                  hint="MAX 5 photos per defect. Unlimited defects per inspection."
+                  label="Photos (required, MAX 5 per defect)"
+                  hint="At least one photo is required as evidence. MAX 5 per defect."
                 />
               </div>
               <div style={{ padding: '0 0.75rem 0.75rem' }}>
