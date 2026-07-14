@@ -9,6 +9,7 @@ import ThemeToggle from '../components/ThemeToggle.jsx';
 import { useConfirm } from '../context/ConfirmContext.jsx';
 import { SnagIcon, BuildingIcon, HomeIcon, GearIcon } from '../components/ModuleIcons.jsx';
 import { cleanLocalPhotosForDraft } from '../utils/localPhotoStore.js';
+import { listOfflineDrafts, deleteOfflineDraft } from '../lib/offlineDrafts.js';
 
 /** "3 min ago" / "2 hours ago" — falls back to a full date past a week. */
 function relativeTime(dateInput) {
@@ -51,45 +52,21 @@ export default function Dashboard() {
     setLoadingDrafts(true);
     const foundDrafts = [];
 
-    // 1. Check local storage for offline drafts
+    // 1. Device-held offline drafts (IndexedDB), across all three modules.
     try {
-      const localVilla = localStorage.getItem('villa_inspection_offline_draft');
-      if (localVilla) {
-        const parsed = JSON.parse(localVilla);
-        foundDrafts.push({
-          id: 'local_villa',
-          type: 'villa',
-          title: `Villa ${parsed.property?.propertyNo || 'Draft'} (Offline Backup)`,
-          description: `Created: ${parsed.property?.inspectionDate || 'Unsaved'}`,
-          isLocal: true,
-          data: parsed
-        });
+      const [offVilla, offWv, offVelora] = await Promise.all([
+        listOfflineDrafts('villa').catch(() => []),
+        listOfflineDrafts('wv').catch(() => []),
+        listOfflineDrafts('velora').catch(() => []),
+      ]);
+      for (const r of offVilla) {
+        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'villa', title: `${r.label || 'Villa draft'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
       }
-
-      const localWv = localStorage.getItem('wv_inspection_offline_draft');
-      if (localWv) {
-        const parsed = JSON.parse(localWv);
-        foundDrafts.push({
-          id: 'local_wv',
-          type: 'wv',
-          title: `Workers Village (${parsed.meta?.auditType || 'Draft'}) (Offline Backup)`,
-          description: `Building: ${parsed.meta?.building || 'Unsaved'}`,
-          isLocal: true,
-          data: parsed
-        });
+      for (const r of offWv) {
+        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'wv', title: `${r.label || 'WV audit'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
       }
-
-      const localVelora = localStorage.getItem('velora_inspection_offline_draft');
-      if (localVelora) {
-        const parsed = JSON.parse(localVelora);
-        foundDrafts.push({
-          id: 'local_velora',
-          type: 'velora',
-          title: `Velora (${parsed.serviceCategory || 'Draft'}) (Offline Backup)`,
-          description: `Date: ${parsed.auditDate || 'Unsaved'}`,
-          isLocal: true,
-          data: parsed
-        });
+      for (const r of offVelora) {
+        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'velora', title: `${r.label || 'Velora audit'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
       }
     } catch (e) {
       console.error('Error reading local drafts', e);
@@ -152,13 +129,12 @@ export default function Dashboard() {
   };
 
   const handleResumeDraft = (draft) => {
-    if (draft.type === 'villa') {
-      navigate('/villa', { state: { resumeDraft: draft.data } });
-    } else if (draft.type === 'wv') {
-      navigate('/wv', { state: { resumeDraft: draft.data } });
-    } else if (draft.type === 'velora') {
-      navigate('/velora', { state: { resumeDraft: draft.data } });
-    }
+    // Device-held drafts resume via resumeOfflineDraft (the module maps its
+    // stored snapshot back into state); server drafts via resumeDraft.
+    const routes = { villa: '/villa', wv: '/wv', velora: '/velora' };
+    const path = routes[draft.type];
+    if (!path) return;
+    navigate(path, { state: draft.isLocal ? { resumeOfflineDraft: draft.data } : { resumeDraft: draft.data } });
   };
 
   const handleDeleteDraft = async (e, draft) => {
@@ -168,22 +144,9 @@ export default function Dashboard() {
     }
     try {
       if (draft.isLocal) {
-        let key = '';
-        if (draft.type === 'villa') key = 'villa_inspection_offline_draft';
-        else if (draft.type === 'wv') key = 'wv_inspection_offline_draft';
-        else if (draft.type === 'velora') key = 'velora_inspection_offline_draft';
-        if (key) {
-          try {
-            const saved = localStorage.getItem(key);
-            if (saved) {
-              cleanLocalPhotosForDraft(JSON.parse(saved), draft.type);
-            }
-          } catch (e) {
-            console.error('Failed to parse local draft for photo cleanup:', e);
-          }
-          localStorage.removeItem(key);
-          show('Offline draft deleted.', 'success');
-        }
+        try { cleanLocalPhotosForDraft(draft.data?.payload, draft.type); } catch (e) {}
+        await deleteOfflineDraft(draft.localId).catch(() => {});
+        show('Offline draft deleted.', 'success');
       } else {
         if (draft.type === 'villa') {
           await api.delete(`/api/villa/drafts/${draft.id}`);

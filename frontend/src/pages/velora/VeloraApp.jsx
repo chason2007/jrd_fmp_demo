@@ -10,7 +10,23 @@ import { api } from '../../api/client.js';
 import { jsPDF } from 'jspdf';
 import { useAutosave } from '../../hooks/useAutosave.js';
 import AutosaveStatus from '../../components/AutosaveStatus.jsx';
+import { newLocalId, listOfflineDrafts, deleteOfflineDraft, syncOfflineDrafts } from '../../lib/offlineDrafts.js';
 import './VeloraApp.css';
+
+// Push one device-held Velora draft up to the server (used by the reconnect sync).
+// Mirrors the field mapping the autosave POST uses.
+async function pushVeloraDraft(payload, record) {
+  const p = payload || {};
+  await api.post('/api/velora/drafts', {
+    draftId: record?.serverId || undefined,
+    serviceTypeId: p.serviceTypeId ? parseInt(p.serviceTypeId, 10) : undefined,
+    serviceCategory: p.serviceCategory,
+    auditDate: p.auditDate,
+    auditorName: p.auditorName,
+    locations: p.selectedLocations,
+    responses: p.auditResponses,
+  });
+}
 import {
   LayoutDashboard,
   ClipboardList,
@@ -158,6 +174,12 @@ export default function VeloraApp() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // A stable id for the audit currently open in the workspace, so repeated
+  // offline saves update ONE device-local record instead of piling up (and two
+  // different audits never overwrite each other). Reset when the form is cleared;
+  // set to a draft's own id when resuming a device-held draft.
+  const localIdRef = useRef(newLocalId());
+
   // State shared by workspace tab (so draft loads correctly)
   const [draftId, setDraftId] = useState(null);
   const [auditNumber, setAuditNumber] = useState(null);
@@ -169,19 +191,6 @@ export default function VeloraApp() {
   const [selectedLocations, setSelectedLocations] = useState([]);
   const [auditResponses, setAuditResponses] = useState({});
   const [currentEditingLocation, setCurrentEditingLocation] = useState(0);
-  const [offlineDraft, setOfflineDraft] = useState(null);
-
-  // Check for local offline backup draft on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('velora_inspection_offline_draft');
-      if (saved) {
-        setOfflineDraft(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.error('Failed to load offline draft from localStorage:', e);
-    }
-  }, []);
 
   // Stats refresh state
   const [statsTrigger, setStatsTrigger] = useState(0);
@@ -209,6 +218,9 @@ export default function VeloraApp() {
     if (location.state?.resumeDraft) {
       loadDraftIntoWorkspace(location.state.resumeDraft);
       window.history.replaceState({}, document.title);
+    } else if (location.state?.resumeOfflineDraft) {
+      loadOfflineDraft(location.state.resumeOfflineDraft);
+      window.history.replaceState({}, document.title);
     }
   }, [location]);
 
@@ -231,8 +243,39 @@ export default function VeloraApp() {
     setSelectedLocations(locs);
     setAuditResponses(resps);
     setCurrentEditingLocation(0);
+    // A server draft is the canonical copy: start a fresh local slot so future
+    // offline saves of this session get their own record.
+    localIdRef.current = newLocalId();
     setActiveTab('audit');
   }
+
+  // Resume a draft that only exists on this device (saved while offline). Its
+  // payload is the exact autosave snapshot, so it maps straight onto state — and
+  // we keep its localId so continued edits update the same device record.
+  function loadOfflineDraft(record) {
+    const p = record.payload || {};
+    localIdRef.current = record.localId;
+    setDraftId(record.serverId || null);
+    setAuditNumber(null);
+    setServiceCategory(p.serviceCategory || '');
+    setServiceTypeId(p.serviceTypeId || '');
+    if (p.auditDate) setAuditDate(p.auditDate);
+    setAuditorName(p.auditorName || user?.username || '');
+    setSelectedLocations(p.selectedLocations || []);
+    setAuditResponses(p.auditResponses || {});
+    setCurrentEditingLocation(0);
+    setActiveTab('audit');
+  }
+
+  // Push any device-held drafts to the server on mount and whenever the
+  // connection is restored. This covers drafts from OTHER audit sessions (e.g.
+  // the user saved audit A offline, moved on to audit B — A still syncs).
+  useEffect(() => {
+    const runSync = () => { syncOfflineDrafts('velora', pushVeloraDraft).catch(() => {}); };
+    runSync();
+    window.addEventListener('online', runSync);
+    return () => window.removeEventListener('online', runSync);
+  }, []);
 
   const startCamera = (callback) => {
     setCameraCallback(() => callback);
@@ -287,9 +330,9 @@ export default function VeloraApp() {
     setSelectedLocations([]);
     setAuditResponses({});
     setCurrentEditingLocation(0);
-    try {
-      localStorage.removeItem('velora_inspection_offline_draft');
-    } catch (e) {}
+    // Drop this session's device-local copy and start a fresh slot for the next audit.
+    deleteOfflineDraft(localIdRef.current).catch(() => {});
+    localIdRef.current = newLocalId();
   };
 
   return (
@@ -352,62 +395,6 @@ export default function VeloraApp() {
         </nav>
 
         <main>
-          {offlineDraft && (
-            <div style={{
-              backgroundColor: 'var(--warn-bg)',
-              border: '1px solid var(--warn-solid)',
-              borderRadius: 'var(--radius)',
-              padding: '1rem',
-              margin: '0 0 1.5rem 0',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '1rem',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ flex: 1, color: 'var(--warn-fg)', fontSize: '0.9rem' }}>
-                <strong>Unsaved Offline Draft Found:</strong> We detected an unsaved Velora service draft from your previous session (possibly due to network disconnect).
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  className="velora-btn-text"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', backgroundColor: 'var(--primary)', color: 'var(--on-primary)', borderRadius: '4px' }}
-                  onClick={() => {
-                    setDraftId(null);
-                    setAuditNumber(null);
-                    setServiceCategory(offlineDraft.serviceCategory || '');
-                    setServiceTypeId(offlineDraft.serviceTypeId || '');
-                    if (offlineDraft.auditDate) {
-                      setAuditDate(new Date(offlineDraft.auditDate).toISOString().split('T')[0]);
-                    }
-                    setAuditorName(offlineDraft.auditorName || user?.username || '');
-                    setSelectedLocations(offlineDraft.selectedLocations || []);
-                    setAuditResponses(offlineDraft.auditResponses || {});
-                    setCurrentEditingLocation(0);
-                    setActiveTab('audit');
-                    setOfflineDraft(null);
-                    show('Offline draft restored.', 'success');
-                  }}
-                >
-                  Restore Draft
-                </button>
-                <button
-                  className="velora-btn-text"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid var(--zinc-400)', borderRadius: '4px' }}
-                  onClick={() => {
-                    try {
-                      localStorage.removeItem('velora_inspection_offline_draft');
-                    } catch (e) {}
-                    setOfflineDraft(null);
-                    show('Offline draft dismissed.', 'info');
-                  }}
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'dashboard' && (
             <DashboardStats statsTrigger={statsTrigger} />
           )}
@@ -443,6 +430,7 @@ export default function VeloraApp() {
           {activeTab === 'drafts' && (
             <DraftsList
               loadDraft={loadDraftIntoWorkspace}
+              loadOfflineDraft={loadOfflineDraft}
               activeTab={activeTab}
               onStartNew={() => setActiveTab('audit')}
             />
@@ -616,7 +604,15 @@ function AuditWorkspace({
         setAuditNumber(res.data.data.draft.auditNumber);
       }
     },
-    { enabled: !!serviceCategory && !!serviceTypeId && !loading, localStorageKey: 'velora_inspection_offline_draft' },
+    {
+      enabled: !!serviceCategory && !!serviceTypeId && !loading,
+      offline: {
+        module: 'velora',
+        getLocalId: () => localIdRef.current,
+        getServerId: () => draftId,
+        getLabel: () => `${(serviceCategory || 'Audit').toUpperCase()} — ${auditorName || user?.username || 'Auditor'}`,
+      },
+    },
   );
 
   // Category Change Handler
@@ -2068,27 +2064,44 @@ function AuditWorkspace({
 // -----------------------------------------------------------------------------
 // 3. Drafts List Tab
 // -----------------------------------------------------------------------------
-function DraftsList({ loadDraft, activeTab, onStartNew }) {
+function DraftsList({ loadDraft, loadOfflineDraft, activeTab, onStartNew }) {
   const { show } = useToast();
   const confirm = useConfirm();
   const [drafts, setDrafts] = useState([]);
+  const [offlineDrafts, setOfflineDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchOffline = () => {
+    listOfflineDrafts('velora').then(setOfflineDrafts).catch(() => setOfflineDrafts([]));
+  };
 
   const fetchDrafts = () => {
     setLoading(true);
+    fetchOffline();
     api.get('/api/velora/drafts')
       .then(res => {
         if (res.data?.success) {
           setDrafts(res.data.data);
         }
       })
-      .catch(err => show('Failed to fetch drafts.', 'error'))
+      // Offline (or a server hiccup) shouldn't nag — the device drafts below still show.
+      .catch(err => { if (navigator.onLine) show('Failed to fetch drafts.', 'error'); })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     fetchDrafts();
+    const onOnline = () => fetchDrafts();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
   }, [activeTab]);
+
+  const deleteOffline = async (localId) => {
+    if (!(await confirm('Delete this draft from this device? It has not been synced to the server.'))) return;
+    await deleteOfflineDraft(localId).catch(() => {});
+    fetchOffline();
+    show('Device draft deleted.', 'success');
+  };
 
   const deleteDraft = async (id) => {
     if (!(await confirm('Are you sure you want to delete this draft?'))) return;
@@ -2120,7 +2133,36 @@ function DraftsList({ loadDraft, activeTab, onStartNew }) {
         Draft Audits
       </div>
 
-      {drafts.length === 0 ? (
+      {offlineDrafts.length > 0 && (
+        <div>
+          {offlineDrafts.map((d) => (
+            <div key={d.localId} className="velora-draft-item">
+              <div className="velora-item-info">
+                <div className="velora-item-title">
+                  {d.label || 'Unsynced audit'}
+                  <span className="badge" style={{ marginLeft: '8px', color: 'var(--warn-fg)', background: 'var(--warn-bg)', borderColor: 'var(--warn-border)' }}>
+                    On this device · not synced
+                  </span>
+                </div>
+                <div className="velora-item-meta">
+                  <span><strong>Saved:</strong> {new Date(d.updatedAt).toLocaleString()}</span>
+                  <span>Will sync automatically when back online.</span>
+                </div>
+              </div>
+              <div className="velora-item-actions">
+                <button className="velora-btn-secondary" onClick={() => loadOfflineDraft(d)}>
+                  <ChevronRight size={14} /> Edit & Continue
+                </button>
+                <button className="velora-btn-danger" onClick={() => deleteOffline(d.localId)}>
+                  <Trash2 size={14} /> Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {drafts.length === 0 && offlineDrafts.length === 0 ? (
         <div className="velora-empty-state">
           <Save size={40} />
           <div style={{ fontWeight: 600, marginTop: '8px' }}>No drafts yet</div>

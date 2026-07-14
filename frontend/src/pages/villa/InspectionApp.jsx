@@ -6,9 +6,25 @@ import ThemeToggle from '../../components/ThemeToggle.jsx';
 import Lightbox from '../../components/Lightbox.jsx';
 import { LayoutDashboard, LogOut } from 'lucide-react';
 
+import { saveDraft } from '../../api/villa.js';
+import { syncOfflineDrafts } from '../../lib/offlineDrafts.js';
+
 import NewInspectionTab from './NewInspectionTab.jsx';
 import ReportsTab from './ReportsTab.jsx';
 import DraftsTab from './DraftsTab.jsx';
+
+// Push one device-held Villa draft to the server (used by the reconnect sync).
+async function pushVillaDraft(payload, record) {
+  const { property, issues } = payload || {};
+  // Villa photos upload separately (by id). If this draft still has photos captured
+  // offline that were never uploaded, don't auto-sync-and-delete it — the user
+  // resumes it, the workspace uploads the photos, then it syncs cleanly.
+  const hasPendingPhotos = (issues || []).some(
+    (iss) => (iss.photoIds || []).some((id) => typeof id === 'string' && id.startsWith('local-')),
+  );
+  if (hasPendingPhotos) throw new Error('draft has photos not yet uploaded');
+  await saveDraft({ draftId: record?.serverId || undefined, ...(property || {}), issues: issues || [] });
+}
 
 export default function InspectionApp() {
   const { user, logout } = useAuth();
@@ -16,6 +32,7 @@ export default function InspectionApp() {
   const location = useLocation();
   const [tab, setTab] = useState('new');
   const [resumeDraft, setResumeDraft] = useState(null);
+  const [resumeOffline, setResumeOffline] = useState(null);
   const [reportsKey, setReportsKey] = useState(0);
   const [draftsKey, setDraftsKey] = useState(0);
   const [lightbox, setLightbox] = useState(null);
@@ -25,8 +42,24 @@ export default function InspectionApp() {
       setResumeDraft(location.state.resumeDraft);
       setTab('new');
       window.history.replaceState({}, document.title);
+    } else if (location.state?.resumeOfflineDraft) {
+      setResumeOffline(location.state.resumeOfflineDraft);
+      setTab('new');
+      window.history.replaceState({}, document.title);
     }
   }, [location]);
+
+  // Push any device-held drafts to the server on mount and on reconnect — covers
+  // drafts from other inspection sessions (saved villa A offline, moved to B; A syncs).
+  useEffect(() => {
+    const runSync = async () => {
+      const { synced } = await syncOfflineDrafts('villa', pushVillaDraft).catch(() => ({ synced: 0 }));
+      if (synced > 0) setDraftsKey((k) => k + 1);
+    };
+    runSync();
+    window.addEventListener('online', runSync);
+    return () => window.removeEventListener('online', runSync);
+  }, []);
 
   useEffect(() => {
     if (user?.role === 'SUPERADMIN') {
@@ -38,6 +71,11 @@ export default function InspectionApp() {
 
   function handleResume(draft) {
     setResumeDraft(draft);
+    setTab('new');
+  }
+
+  function handleResumeOffline(record) {
+    setResumeOffline(record);
     setTab('new');
   }
 
@@ -87,14 +125,16 @@ export default function InspectionApp() {
       <div style={{ display: tab === 'new' ? 'block' : 'none' }}>
         <NewInspectionTab
           resumeDraft={resumeDraft}
+          resumeOfflineDraft={resumeOffline}
           onResumed={() => setResumeDraft(null)}
+          onOfflineResumed={() => setResumeOffline(null)}
           onCompleted={() => { setReportsKey((k) => k + 1); setDraftsKey((k) => k + 1); setTab('reports'); }}
           onDraftSaved={() => setDraftsKey((k) => k + 1)}
           onLightbox={setLightbox}
         />
       </div>
       {tab === 'reports' && <ReportsTab refreshKey={reportsKey} onLightbox={setLightbox} onStartNew={() => setTab('new')} />}
-      {tab === 'drafts' && <DraftsTab refreshKey={draftsKey} onResume={handleResume} onStartNew={() => setTab('new')} />}
+      {tab === 'drafts' && <DraftsTab refreshKey={draftsKey} onResume={handleResume} onResumeOffline={handleResumeOffline} onStartNew={() => setTab('new')} />}
 
       {lightbox && (
         <Lightbox url={lightbox} onClose={() => setLightbox(null)} />

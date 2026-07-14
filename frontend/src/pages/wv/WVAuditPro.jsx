@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
@@ -19,7 +19,35 @@ import { cleanLocalPhotosForDraft, uploadLocalPhoto } from '../../utils/localPho
 import {
   Building2, FileText, ClipboardList, Save, LogOut, ThumbsUp, ThumbsDown, LayoutDashboard, ArrowLeft, CheckCircle
 } from 'lucide-react';
-import { generatePdfReport } from '../../utils/pdfGenerator.js';
+import { generateUnifiedPdf } from '../../utils/pdfGenerator.js';
+import { newLocalId, listOfflineDrafts, deleteOfflineDraft, syncOfflineDrafts } from '../../lib/offlineDrafts.js';
+
+// Turn a device-held autosave snapshot ({ meta, responses }) into the on-wire
+// draft shape the server expects (same mapping AuditWorkspace.getPayload uses).
+function wvPayloadToWire({ meta, responses } = {}) {
+  return {
+    ...(meta || {}),
+    responses: Object.fromEntries(
+      Object.entries(responses || {}).map(([item, r]) => [
+        item,
+        { answer: r.answer ?? undefined, comment: r.comment || undefined, photoIds: (r.images || []).map((img) => img.id).filter(Boolean) },
+      ]),
+    ),
+  };
+}
+
+// Push one device-held WV draft to the server (used by the reconnect sync).
+async function pushWvDraft(payload, record) {
+  // WV photos upload separately (by id). If this draft still has photos captured
+  // offline that were never uploaded, don't auto-sync-and-delete it — that would
+  // drop those photos. Throwing keeps it on the device so the user can resume it,
+  // let the workspace upload the photos, then it syncs cleanly.
+  const hasPendingPhotos = Object.values(payload?.responses || {}).some(
+    (r) => (r.images || []).some((img) => !img.id),
+  );
+  if (hasPendingPhotos) throw new Error('draft has photos not yet uploaded');
+  await wv.saveDraft({ draftId: record?.serverId || undefined, ...wvPayloadToWire(payload) });
+}
 
 export default function WVAuditPro() {
   const navigate = useNavigate();
@@ -27,6 +55,7 @@ export default function WVAuditPro() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('audit');
   const [resumeDraft, setResumeDraft] = useState(null);
+  const [resumeOffline, setResumeOffline] = useState(null);
   const [draftsKey, setDraftsKey] = useState(0);
 
   useEffect(() => {
@@ -34,8 +63,24 @@ export default function WVAuditPro() {
       setResumeDraft(location.state.resumeDraft);
       setActiveTab('audit');
       window.history.replaceState({}, document.title);
+    } else if (location.state?.resumeOfflineDraft) {
+      setResumeOffline(location.state.resumeOfflineDraft);
+      setActiveTab('audit');
+      window.history.replaceState({}, document.title);
     }
   }, [location]);
+
+  // Push any device-held drafts to the server on mount and on reconnect — covers
+  // drafts from other audit sessions (saved audit A offline, moved to B; A syncs).
+  useEffect(() => {
+    const runSync = async () => {
+      const { synced } = await syncOfflineDrafts('wv', pushWvDraft).catch(() => ({ synced: 0 }));
+      if (synced > 0) setDraftsKey((k) => k + 1);
+    };
+    runSync();
+    window.addEventListener('online', runSync);
+    return () => window.removeEventListener('online', runSync);
+  }, []);
 
   useEffect(() => {
     if (user?.role === 'SUPERADMIN') {
@@ -47,6 +92,11 @@ export default function WVAuditPro() {
 
   function handleResume(draft) {
     setResumeDraft(draft);
+    setActiveTab('audit');
+  }
+
+  function handleResumeOffline(record) {
+    setResumeOffline(record);
     setActiveTab('audit');
   }
 
@@ -107,12 +157,14 @@ export default function WVAuditPro() {
           <div style={{ display: activeTab === 'audit' ? 'block' : 'none' }}>
             <AuditWorkspace
               resumeDraft={resumeDraft}
+              resumeOfflineDraft={resumeOffline}
               onResumed={() => setResumeDraft(null)}
+              onOfflineResumed={() => setResumeOffline(null)}
               onDraftSaved={() => setDraftsKey((k) => k + 1)}
               onCompleted={() => { setDraftsKey((k) => k + 1); setActiveTab('reports'); }}
             />
           </div>
-          {activeTab === 'drafts' && <DraftsList refreshKey={draftsKey} onResume={handleResume} onStartNew={() => setActiveTab('audit')} />}
+          {activeTab === 'drafts' && <DraftsList refreshKey={draftsKey} onResume={handleResume} onResumeOffline={handleResumeOffline} onStartNew={() => setActiveTab('audit')} />}
           {activeTab === 'reports' && <ReportsList onStartNew={() => setActiveTab('audit')} />}
         </main>
       </div>
@@ -169,28 +221,19 @@ function responsesFromWire(responses) {
   return out;
 }
 
-function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
+function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineResumed, onDraftSaved, onCompleted }) {
   const { show } = useToast();
   const [phase, setPhase] = useState('setup'); // setup, checklist, complete
   const [draftId, setDraftId] = useState(null);
   const [meta, setMeta] = useState(emptyMeta);
   const [responses, setResponses] = useState({});
   const [loading, setLoading] = useState(false);
-  const [offlineDraft, setOfflineDraft] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [syncingPhotos, setSyncingPhotos] = useState(false);
 
-  // Check for local offline backup draft on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('wv_inspection_offline_draft');
-      if (saved) {
-        setOfflineDraft(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.error('Failed to load offline draft from localStorage:', e);
-    }
-  }, []);
+  // Stable id for the audit open in the workspace, so repeated offline saves
+  // update ONE device record. Reset on clear; set to a draft's id when resuming.
+  const localIdRef = useRef(newLocalId());
 
   useEffect(() => {
     if (!resumeDraft) return;
@@ -207,10 +250,25 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
     });
     setResponses(responsesFromWire(resumeDraft.responses));
     setDraftId(resumeDraft.id);
+    localIdRef.current = newLocalId(); // server draft is canonical; fresh local slot
     setPhase('checklist');
     show('Draft loaded — continue where you left off.', 'info');
     onResumed?.();
   }, [resumeDraft, onResumed, show]);
+
+  // Resume a draft held only on this device (saved offline). Its payload is the
+  // exact autosave snapshot, so meta/responses map straight on; keep its localId.
+  useEffect(() => {
+    if (!resumeOfflineDraft) return;
+    const p = resumeOfflineDraft.payload || {};
+    localIdRef.current = resumeOfflineDraft.localId;
+    setMeta({ ...emptyMeta, ...(p.meta || {}) });
+    setResponses(p.responses || {});
+    setDraftId(resumeOfflineDraft.serverId || null);
+    setPhase('checklist');
+    show('Device draft loaded — continue where you left off.', 'info');
+    onOfflineResumed?.();
+  }, [resumeOfflineDraft, onOfflineResumed, show]);
 
   const isNonRoom = meta.auditType === 'gym' || meta.auditType === 'recreation';
   const showStaff = meta.auditType === 'rooms' && meta.room !== 'Corridor' && meta.room !== 'Stairways';
@@ -224,7 +282,18 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
       setDraftId(draft.id);
       onDraftSaved?.();
     },
-    { enabled: phase === 'checklist' && !loading, localStorageKey: 'wv_inspection_offline_draft' },
+    {
+      enabled: phase === 'checklist' && !loading,
+      offline: {
+        module: 'wv',
+        getLocalId: () => localIdRef.current,
+        getServerId: () => draftId,
+        getLabel: () => {
+          const where = isNonRoom ? meta.auditType?.toUpperCase() : [meta.cluster, meta.building, meta.room && `Room ${meta.room}`].filter(Boolean).join(' · ');
+          return where || 'WV audit';
+        },
+      },
+    },
   );
 
   useEffect(() => {
@@ -326,9 +395,7 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
     try {
       await wv.saveAudit({ draftId: draftId || undefined, ...getPayload() });
       setPhase('complete');
-      try {
-        localStorage.removeItem('wv_inspection_offline_draft');
-      } catch (e) {}
+      deleteOfflineDraft(localIdRef.current).catch(() => {});
     } catch (e) {
       show(errorMessage(e, 'Could not complete audit.'), 'error');
     } finally {
@@ -341,9 +408,8 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
     setDraftId(null);
     setMeta(emptyMeta);
     setResponses({});
-    try {
-      localStorage.removeItem('wv_inspection_offline_draft');
-    } catch (e) {}
+    deleteOfflineDraft(localIdRef.current).catch(() => {});
+    localIdRef.current = newLocalId();
   }
 
   const getLiveStats = () => {
@@ -374,53 +440,6 @@ function AuditWorkspace({ resumeDraft, onResumed, onDraftSaved, onCompleted }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {offlineDraft && (
-        <div style={{
-          backgroundColor: 'var(--warn-bg)',
-          border: '1px solid var(--warn-solid)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{ flex: 1, color: 'var(--warn-fg)', fontSize: '0.9rem' }}>
-            <strong>Unsaved Offline Draft Found:</strong> We detected an unsaved Workers Village draft from your previous session (possibly due to network disconnect).
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              className="wv-btn-action wv-btn-primary"
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-              onClick={() => {
-                setMeta(offlineDraft.meta || emptyMeta);
-                setResponses(offlineDraft.responses || {});
-                setPhase('checklist');
-                setOfflineDraft(null);
-                show('Offline draft restored.', 'success');
-              }}
-            >
-              Restore Draft
-            </button>
-            <button
-              className="wv-btn-action wv-btn-outline"
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', backgroundColor: 'transparent' }}
-              onClick={() => {
-                try {
-                  cleanLocalPhotosForDraft(offlineDraft, 'wv');
-                  localStorage.removeItem('wv_inspection_offline_draft');
-                } catch (e) {}
-                setOfflineDraft(null);
-                show('Offline draft dismissed.', 'info');
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-
       {phase === 'setup' && (
         <section className="wv-card">
           <div className="wv-card-header"><h2 className="wv-card-title">Audit Information</h2></div>
@@ -598,18 +617,28 @@ function ChecklistItem({ item, response = { answer: null, comment: '', images: [
 // -----------------------------------------------------------------------------
 // Lists (Drafts / Reports)
 // -----------------------------------------------------------------------------
-function DraftsList({ refreshKey, onResume, onStartNew }) {
+function DraftsList({ refreshKey, onResume, onResumeOffline, onStartNew }) {
   const { show } = useToast();
   const confirm = useConfirm();
   const [drafts, setDrafts] = useState([]);
+  const [offlineDrafts, setOfflineDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchOffline = () => {
+    listOfflineDrafts('wv').then(setOfflineDrafts).catch(() => setOfflineDrafts([]));
+  };
 
   useEffect(() => {
     setLoading(true);
+    fetchOffline();
     wv.listDrafts()
       .then(setDrafts)
-      .catch((e) => show(errorMessage(e, 'Could not load drafts.'), 'error'))
+      // Offline (or a server hiccup) shouldn't nag — device drafts below still show.
+      .catch((e) => { if (navigator.onLine) show(errorMessage(e, 'Could not load drafts.'), 'error'); })
       .finally(() => setLoading(false));
+    const onOnline = () => fetchOffline();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
   }, [refreshKey, show]);
 
   async function resume(id) {
@@ -631,13 +660,38 @@ function DraftsList({ refreshKey, onResume, onStartNew }) {
     }
   }
 
+  async function removeOffline(record) {
+    if (!(await confirm('Delete this draft from this device? It has not been synced to the server.'))) return;
+    try { cleanLocalPhotosForDraft(record.payload, 'wv'); } catch (e) {}
+    await deleteOfflineDraft(record.localId).catch(() => {});
+    setOfflineDrafts((prev) => prev.filter((d) => d.localId !== record.localId));
+    show('Device draft deleted.', 'success');
+  }
+
   return (
     <div className="wv-card">
       <div className="wv-card-header"><h2 className="wv-card-title">Saved Drafts</h2></div>
       <div>
+        {offlineDrafts.map((d) => (
+          <div key={d.localId} className="wv-list-item">
+            <div>
+              <h3 className="wv-list-title">
+                {d.label || 'WV audit'}
+                <span className="badge" style={{ marginLeft: '8px', color: 'var(--warn-fg)', background: 'var(--warn-bg)', borderColor: 'var(--warn-border)' }}>
+                  On this device · not synced
+                </span>
+              </h3>
+              <p className="wv-list-meta">Saved: {new Date(d.updatedAt).toLocaleString()} · syncs automatically when back online</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <button className="wv-list-link" onClick={() => onResumeOffline(d)}>Resume</button>
+              <button className="wv-list-link" style={{ color: 'var(--danger)' }} onClick={() => removeOffline(d)}>Delete</button>
+            </div>
+          </div>
+        ))}
         {loading ? (
           <ListSkeleton rows={3} />
-        ) : drafts.length === 0 ? (
+        ) : drafts.length === 0 && offlineDrafts.length === 0 ? (
           <EmptyState
             title="No drafts yet"
             message="Drafts you save while working through a checklist will show up here."
@@ -662,32 +716,61 @@ function DraftsList({ refreshKey, onResume, onStartNew }) {
   );
 }
 
-/** Adapt a WV audit into the shape generatePdfReport expects (villa/issues). */
-function toPdfShape(audit) {
-  const issues = Object.entries(audit.responses || {})
-    .filter(([, r]) => r.answer === 'no')
-    .map(([item, r]) => ({
-      area: audit.auditType,
-      room: audit.room || '',
-      floor: audit.floor || '',
-      category: 'WV Checklist',
-      spotDesc: item,
-      comment: r.comment || '',
-      photos: (r.photoIds || []).map((id) => ({ id })),
-    }));
-  if (issues.length === 0) {
-    issues.push({ area: audit.auditType, spotDesc: 'Audit Completed - No Defects Found', category: 'WV Checklist', comment: 'All checked items are compliant.' });
-  }
+/** Build a WV audit into the unified report structure (matches Velora's format),
+ *  grouping checklist items by category and scoring by compliance rate. */
+function buildWvReport(audit) {
+  const groups = getChecklist(audit.auditType, audit.room);
+  const responses = audit.responses || {};
+
+  let total = 0;
+  let compliant = 0;
+  const sections = groups
+    .map((g) => ({
+      title: g.name,
+      items: g.items
+        .filter((q) => responses[q]) // only items that were assessed
+        .map((q) => {
+          const r = responses[q];
+          const yes = r.answer === 'yes';
+          const no = r.answer === 'no';
+          if (yes || no) { total += 1; if (yes) compliant += 1; }
+          return {
+            heading: q,
+            status: yes ? 'ok' : no ? 'bad' : undefined,
+            statusLabel: yes ? 'Compliant' : no ? 'Non-Compliant' : 'Not Assessed',
+            lines: r.comment ? [`Remark: ${r.comment}`] : [],
+            photos: (r.photoIds || []).map((id) => ({ id })),
+          };
+        }),
+    }))
+    .filter((s) => s.items.length);
+
+  const percent = total > 0 ? (compliant / total) * 100 : 100;
+  const rating = percent >= 90 ? 'Excellent' : percent >= 75 ? 'Good' : percent >= 60 ? 'Average' : 'Poor';
+
+  const isNonRoom = audit.auditType === 'gym' || audit.auditType === 'recreation';
   const dateStr = audit.auditDate ? new Date(audit.auditDate).toISOString().split('T')[0] : '';
-  let address = `Audit Date: ${dateStr} | Inspector: ${audit.inspectorName || ''}`;
-  if (audit.staffName) address += ` | Staff Name: ${audit.staffName} | Staff No: ${audit.staffNo || ''}`;
-  const propertyNumber = (audit.auditType === 'gym' || audit.auditType === 'recreation')
+  const location = isNonRoom
     ? `WV-${audit.auditType.toUpperCase()}`
     : `WV-${audit.cluster || 'X'}-${audit.building || 'X'}-${audit.floor || 'X'}-${audit.room || 'X'}`;
+  const typeLabel = String(audit.auditType || 'rooms').replace(/^\w/, (c) => c.toUpperCase());
+
+  const info = [
+    { label: 'Audit Number', value: audit.auditCode || 'N/A' },
+    { label: 'Audit Type', value: `Workers Village — ${typeLabel}` },
+    { label: 'Location', value: location },
+    { label: 'Audit Date', value: `${dateStr}  |  Inspector: ${audit.inspectorName || ''}` },
+  ];
+  if (audit.staffName) {
+    info.push({ label: 'Staff', value: `${audit.staffName}${audit.staffNo ? ` (No. ${audit.staffNo})` : ''}` });
+  }
+
   return {
-    auditCode: audit.auditCode,
-    villa: { propertyNumber, ownerName: 'Workers Village', address, emirate: 'Dubai', area: 'WV Base' },
-    issues,
+    reportTitle: 'JR Dream Facilities Audit Report',
+    fileName: `${audit.auditCode || 'WV_Audit'}.pdf`,
+    info,
+    score: { percent, rating },
+    sections,
   };
 }
 
@@ -709,7 +792,7 @@ function ReportsList({ onStartNew }) {
     try {
       setDownloading(code);
       const audit = await wv.getAudit(code);
-      await generatePdfReport(toPdfShape(audit), { photoEndpoint: '/api/wv/photos' });
+      await generateUnifiedPdf(buildWvReport(audit), { photoEndpoint: '/api/wv/photos' });
     } catch (err) {
       show(errorMessage(err, 'Could not generate PDF.'), 'error');
     } finally {

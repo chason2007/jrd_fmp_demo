@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { saveInspection, saveDraft, uploadPhoto, fetchPhotoUrl } from '../../api/villa.js';
 import { errorMessage } from '../../api/client.js';
 import { useToast } from '../../context/ToastContext.jsx';
@@ -7,7 +7,8 @@ import PhotoCapture from '../../components/PhotoCapture.jsx';
 import PhotoThumb from '../../components/PhotoThumb.jsx';
 import AutosaveStatus from '../../components/AutosaveStatus.jsx';
 import { EMIRATES, AREA_TYPES, FLOORS, ROOMS, CATEGORIES, SUB_CATEGORIES, ISSUE_TYPES } from '../../lib/options.js';
-import { cleanLocalPhotosForDraft, uploadLocalPhoto } from '../../utils/localPhotoStore.js';
+import { uploadLocalPhoto } from '../../utils/localPhotoStore.js';
+import { newLocalId, deleteOfflineDraft } from '../../lib/offlineDrafts.js';
 
 const emptyProperty = { propertyNumber: '', ownerName: '', propertyAddress: '', emirate: 'Dubai', area: '' };
 const emptyDefect = { area: '', floor: '', room: '', category: '', subCategory: '', issueType: '', spotDesc: '', comment: '' };
@@ -40,7 +41,7 @@ function FieldError({ message }) {
   return <span style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{message}</span>;
 }
 
-export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, onDraftSaved, onLightbox }) {
+export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineResumed, onCompleted, onDraftSaved, onLightbox }) {
   const { show } = useToast();
   const [property, setProperty] = useState(emptyProperty);
   const [started, setStarted] = useState(false);
@@ -49,22 +50,13 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
   const [defect, setDefect] = useState(emptyDefect);
   const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [offlineDraft, setOfflineDraft] = useState(null);
   const [propertyErrors, setPropertyErrors] = useState({});
   const [defectErrors, setDefectErrors] = useState({});
   const [syncingPhotos, setSyncingPhotos] = useState(false);
 
-  // Check for local offline backup draft on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('villa_inspection_offline_draft');
-      if (saved) {
-        setOfflineDraft(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.error('Failed to load offline draft from localStorage:', e);
-    }
-  }, []);
+  // Stable id for the inspection open in the workspace, so repeated offline saves
+  // update ONE device record. Reset on clear; set to a draft's id when resuming.
+  const localIdRef = useRef(newLocalId());
 
   // Load a draft when one is handed in from the Drafts tab.
   useEffect(() => {
@@ -78,10 +70,26 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
     });
     setIssues(Array.isArray(resumeDraft.issuesData) ? resumeDraft.issuesData : []);
     setDraftId(resumeDraft.id);
+    localIdRef.current = newLocalId(); // server draft is canonical; fresh local slot
     setStarted(true);
     show('Draft loaded — continue where you left off.', 'info');
     onResumed?.();
   }, [resumeDraft, onResumed, show]);
+
+  // Resume a draft held only on this device (saved offline). Its payload is the
+  // exact autosave snapshot ({ property, issues }); keep its localId so continued
+  // edits update the same device record.
+  useEffect(() => {
+    if (!resumeOfflineDraft) return;
+    const p = resumeOfflineDraft.payload || {};
+    localIdRef.current = resumeOfflineDraft.localId;
+    setProperty({ ...emptyProperty, ...(p.property || {}) });
+    setIssues(Array.isArray(p.issues) ? p.issues : []);
+    setDraftId(resumeOfflineDraft.serverId || null);
+    setStarted(true);
+    show('Device draft loaded — continue where you left off.', 'info');
+    onOfflineResumed?.();
+  }, [resumeOfflineDraft, onOfflineResumed, show]);
 
   // Silently keep the draft in sync while the user works — separate from the
   // manual Save Draft button, which still gives its own explicit toast.
@@ -92,7 +100,15 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
       setDraftId(draft.id);
       onDraftSaved?.();
     },
-    { enabled: started && !busy && !!property.propertyNumber.trim() && !!property.ownerName.trim(), localStorageKey: 'villa_inspection_offline_draft' },
+    {
+      enabled: started && !busy && !!property.propertyNumber.trim() && !!property.ownerName.trim(),
+      offline: {
+        module: 'villa',
+        getLocalId: () => localIdRef.current,
+        getServerId: () => draftId,
+        getLabel: () => `Villa ${property.propertyNumber || '—'}${property.ownerName ? ` · ${property.ownerName}` : ''}`,
+      },
+    },
   );
 
   useEffect(() => {
@@ -230,9 +246,8 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
     setDraftId(null);
     setPropertyErrors({});
     setDefectErrors({});
-    try {
-      localStorage.removeItem('villa_inspection_offline_draft');
-    } catch (e) {}
+    deleteOfflineDraft(localIdRef.current).catch(() => {});
+    localIdRef.current = newLocalId();
   }
 
   async function handleSaveDraft() {
@@ -281,54 +296,6 @@ export default function NewInspectionTab({ resumeDraft, onResumed, onCompleted, 
 
   return (
     <>
-      {offlineDraft && (
-        <div style={{
-          backgroundColor: 'var(--warn-bg)',
-          border: '1px solid var(--warn-solid)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          margin: '1rem 1rem 0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{ flex: 1, color: 'var(--warn-fg)', fontSize: '0.9rem' }}>
-            <strong>Unsaved Offline Draft Found:</strong> We detected an unsaved draft for villa <strong>{offlineDraft.property?.propertyNumber || 'Unknown'}</strong> from your previous session (possibly due to network disconnect).
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              className="btn-primary"
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-              onClick={() => {
-                setProperty(offlineDraft.property || emptyProperty);
-                setIssues(offlineDraft.issues || []);
-                setStarted(true);
-                setOfflineDraft(null);
-                show('Offline draft restored.', 'success');
-              }}
-            >
-              Restore Draft
-            </button>
-            <button
-              className="btn-danger-outline"
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', backgroundColor: 'transparent' }}
-              onClick={() => {
-                try {
-                  cleanLocalPhotosForDraft(offlineDraft, 'villa');
-                  localStorage.removeItem('villa_inspection_offline_draft');
-                } catch (e) {}
-                setOfflineDraft(null);
-                show('Offline draft dismissed.', 'info');
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="stats-bar">
         <div className="stat"><div className="stat-value">{issues.length}</div><div className="stat-label">Total Issues</div></div>
         <div className="stat"><div className="stat-value">{totalPhotos}</div><div className="stat-label">Total Photos</div></div>

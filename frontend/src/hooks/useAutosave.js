@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { saveOfflineDraft, deleteOfflineDraft, markActiveLocalId, releaseActiveLocalId } from '../lib/offlineDrafts.js';
 
 /**
  * Autosave a piece of state: debounced after edits, with a periodic fallback
@@ -13,9 +14,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
  * @param {boolean} [opts.enabled=true] - set false until there's anything worth saving
  * @param {number} [opts.debounceMs=4000] - quiet period after an edit before saving
  * @param {number} [opts.intervalMs=45000] - safety-net save cadence during continuous edits
+ * @param {object} [opts.offline] - persist a device-local copy when a save can't reach the server.
+ * @param {'velora'|'wv'|'villa'} opts.offline.module
+ * @param {() => string} opts.offline.getLocalId - stable id for THIS editing session (so repeated
+ *        offline saves update one record instead of duplicating). See newLocalId().
+ * @param {() => string} opts.offline.getLabel - human label for the offline drafts list.
+ * @param {() => (number|null)} [opts.offline.getServerId] - server draft id if one exists yet.
  * @returns {{ status: 'idle'|'saving'|'saved'|'error'|'offline', lastSavedAt: Date|null, flush: () => Promise<'saved'|'skipped'|'offline'|'error'|'pending'> }}
  */
-export function useAutosave(data, saveFn, { enabled = true, debounceMs = 4000, intervalMs = 45000, localStorageKey = null } = {}) {
+export function useAutosave(data, saveFn, { enabled = true, debounceMs = 4000, intervalMs = 45000, offline = null } = {}) {
   const [status, setStatus] = useState('idle');
   const [lastSavedAt, setLastSavedAt] = useState(null);
 
@@ -23,6 +30,10 @@ export function useAutosave(data, saveFn, { enabled = true, debounceMs = 4000, i
   dataRef.current = data;
   const saveFnRef = useRef(saveFn);
   saveFnRef.current = saveFn;
+  // Kept in a ref so a fresh `offline` object each render doesn't churn attemptSave
+  // (which the debounce/interval effects depend on).
+  const offlineRef = useRef(offline);
+  offlineRef.current = offline;
 
   const lastSavedSnapshot = useRef(null);
   const savingRef = useRef(false);
@@ -43,15 +54,28 @@ export function useAutosave(data, saveFn, { enabled = true, debounceMs = 4000, i
       return 'pending';
     }
 
+    // Persist a device-local copy of the current data (offline / failed save).
+    const persistOffline = async () => {
+      const off = offlineRef.current;
+      if (!off) return;
+      // Claim this draft so the background reconnect sync leaves it to us.
+      markActiveLocalId(off.getLocalId());
+      try {
+        await saveOfflineDraft({
+          localId: off.getLocalId(),
+          module: off.module,
+          label: off.getLabel ? off.getLabel() : '',
+          serverId: off.getServerId ? off.getServerId() : null,
+          payload: dataRef.current,
+        });
+      } catch (e) {
+        console.error('Failed to write offline draft to IndexedDB:', e);
+      }
+    };
+
     // Check if browser is offline
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      if (localStorageKey) {
-        try {
-          localStorage.setItem(localStorageKey, snapshot);
-        } catch (e) {
-          console.error('Failed to write offline draft to localStorage:', e);
-        }
-      }
+      await persistOffline();
       setStatus('offline');
       return 'offline';
     }
@@ -63,21 +87,17 @@ export function useAutosave(data, saveFn, { enabled = true, debounceMs = 4000, i
       lastSavedSnapshot.current = snapshot;
       setStatus('saved');
       setLastSavedAt(new Date());
-      if (localStorageKey) {
-        try {
-          localStorage.removeItem(localStorageKey);
-        } catch (e) {}
+      // The server now holds the canonical draft — drop the device-local copy
+      // and release our claim on it.
+      if (offlineRef.current) {
+        const id = offlineRef.current.getLocalId();
+        try { await deleteOfflineDraft(id); } catch (e) {}
+        releaseActiveLocalId(id);
       }
       return 'saved';
     } catch (err) {
       setStatus('error');
-      if (localStorageKey) {
-        try {
-          localStorage.setItem(localStorageKey, snapshot);
-        } catch (e) {
-          console.error('Failed to write draft backup to localStorage:', e);
-        }
-      }
+      await persistOffline();
       return 'error';
     } finally {
       savingRef.current = false;
@@ -86,7 +106,7 @@ export function useAutosave(data, saveFn, { enabled = true, debounceMs = 4000, i
         attemptSave();
       }
     }
-  }, [enabled, localStorageKey]);
+  }, [enabled]);
 
   /** Save immediately, bypassing the debounce (used by manual Save buttons). */
   const flush = useCallback(() => {
