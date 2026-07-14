@@ -88,7 +88,24 @@ export async function servePhoto(req, res) {
 export async function saveAudit(req, res) {
   const body = req.body;
   const userId = req.user.id;
-  const auditCode = newWvAuditCode();
+
+  // Integrity: a non-compliant ("No") item must carry evidence — a remark AND at
+  // least one photo. Enforced here too so the rule holds even if the client is
+  // bypassed.
+  const missingEvidence = Object.values(body.responses || {}).filter(
+    (r) => r?.answer === 'no' && (!String(r?.comment || '').trim() || !(Array.isArray(r?.photoIds) ? r.photoIds : []).length),
+  );
+  if (missingEvidence.length) {
+    throw new HttpError(400, `Every non-compliant ("No") item requires a remark and at least one photo. ${missingEvidence.length} item(s) are missing evidence.`);
+  }
+
+  const auditCode = newWvAuditCode({
+    auditType: body.auditType,
+    cluster: body.cluster,
+    building: body.building,
+    floor: body.floor,
+    room: body.room,
+  });
   const stats = complianceStats(body.responses);
 
   const audit = await prisma.$transaction(async (tx) => {

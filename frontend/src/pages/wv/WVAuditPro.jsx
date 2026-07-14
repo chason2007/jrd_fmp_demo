@@ -230,6 +230,8 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
   const [loading, setLoading] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [syncingPhotos, setSyncingPhotos] = useState(false);
+  // Turns on the inline "remark + photo required" highlights after a blocked completion.
+  const [showEvidenceErrors, setShowEvidenceErrors] = useState(false);
 
   // Stable id for the audit open in the workspace, so repeated offline saves
   // update ONE device record. Reset on clear; set to a draft's id when resuming.
@@ -390,7 +392,20 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
     }
   };
 
+  // Non-compliant ("No") items must carry evidence: a remark AND at least one photo.
+  const incompleteNoItems = () =>
+    Object.entries(responses)
+      .filter(([, r]) => r?.answer === 'no')
+      .filter(([, r]) => !String(r.comment || '').trim() || !(r.images || []).length)
+      .map(([item]) => item);
+
   const completeAudit = async () => {
+    const incomplete = incompleteNoItems();
+    if (incomplete.length) {
+      setShowEvidenceErrors(true);
+      show(`Every "No" item needs a remark and at least one photo. ${incomplete.length} item(s) still missing evidence.`, 'error');
+      return;
+    }
     setLoading(true);
     try {
       await wv.saveAudit({ draftId: draftId || undefined, ...getPayload() });
@@ -408,6 +423,7 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
     setDraftId(null);
     setMeta(emptyMeta);
     setResponses({});
+    setShowEvidenceErrors(false);
     deleteOfflineDraft(localIdRef.current).catch(() => {});
     localIdRef.current = newLocalId();
   }
@@ -529,6 +545,7 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
                     response={responses[item]}
                     onChange={r => setResponses(prev => ({...prev, [item]: r}))}
                     onLightbox={setLightbox}
+                    showErrors={showEvidenceErrors}
                   />
                 ))}
               </section>
@@ -569,8 +586,11 @@ function FormSelect({ label, value, onChange, options, disabled }) {
   );
 }
 
-function ChecklistItem({ item, response = { answer: null, comment: '', images: [] }, onChange, onLightbox }) {
+function ChecklistItem({ item, response = { answer: null, comment: '', images: [] }, onChange, onLightbox, showErrors = false }) {
   const images = response.images || [];
+  const isNo = response.answer === 'no';
+  const missingComment = isNo && !String(response.comment || '').trim();
+  const missingPhoto = isNo && images.length === 0;
 
   return (
     <div className="wv-check-item">
@@ -587,15 +607,21 @@ function ChecklistItem({ item, response = { answer: null, comment: '', images: [
           className={`wv-toggle ${response.answer === 'no' ? 'active-no' : ''}`}
         ><ThumbsDown size={14} /> No</button>
       </div>
-      {response.answer === 'no' && (
+      {isNo && (
         <div style={{ width: '100%', marginTop: 10 }}>
+          <p style={{ fontSize: '0.75rem', color: 'var(--warn-fg)', margin: '0 0 6px 0', fontWeight: 600 }}>
+            Non-compliant — a remark and at least one photo are required.
+          </p>
           <textarea
             className="wv-input"
-            placeholder="Add comments or details about the issue..."
+            placeholder="Add a remark describing the issue (required)..."
             value={response.comment || ''}
             onChange={e => onChange({ ...response, comment: e.target.value })}
-            style={{ width: '100%', minHeight: 60 }}
+            style={{ width: '100%', minHeight: 60, borderColor: showErrors && missingComment ? 'var(--danger)' : undefined }}
           />
+          {showErrors && missingComment && (
+            <p style={{ fontSize: '0.72rem', color: 'var(--danger)', margin: '4px 0 0 0' }}>A remark is required for a non-compliant item.</p>
+          )}
           <div style={{ marginTop: '10px' }}>
             <PhotoCapture
               value={images}
@@ -604,9 +630,12 @@ function ChecklistItem({ item, response = { answer: null, comment: '', images: [
               fetchUrl={wv.fetchPhotoUrl}
               max={3}
               onLightbox={onLightbox}
-              hint="Attach up to 3 photos as evidence."
+              hint="Attach at least one photo as evidence (up to 3)."
               buttonClassName="wv-btn-action wv-btn-outline"
             />
+            {showErrors && missingPhoto && (
+              <p style={{ fontSize: '0.72rem', color: 'var(--danger)', margin: '4px 0 0 0' }}>At least one photo is required as evidence.</p>
+            )}
           </div>
         </div>
       )}

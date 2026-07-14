@@ -69,7 +69,7 @@ export async function servePhoto(req, res) {
 export async function saveInspection(req, res) {
   const body = req.body;
   const userId = req.user.id;
-  const auditCode = newAuditCode();
+  const auditCode = newAuditCode(body.propertyNumber);
 
   const result = await prisma.$transaction(async (tx) => {
     // Get-or-create the villa by property number (matches legacy behaviour).
