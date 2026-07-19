@@ -133,8 +133,6 @@ export const generateUnifiedPdf = async (report, { photoEndpoint = '/api/villa/p
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(113, 113, 122); // zinc-500
-    doc.text('J R D Real Estate Management L.L.C O.P.C', margin, pageHeight - 14);
-    doc.text('Mazyad Mall, Tower 1, Floor 9, Office 30, Abu Dhabi', margin, pageHeight - 10);
 
     doc.text(`Page ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
   };
