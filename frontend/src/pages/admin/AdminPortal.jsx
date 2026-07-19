@@ -322,7 +322,6 @@ export default function AdminPortal() {
     <div className="app-container">
       <header className="app-header">
         <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-          <img src="/logo.png" alt="JR Dream Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
           <div>
             <h1>{user?.role === 'SUPERADMIN' ? 'SUPERADMIN DASHBOARD' : 'ADMIN DASHBOARD'}</h1>
             <p>{user?.role === 'SUPERADMIN' ? 'System oversight' : 'Oversight & Inspection Management'}</p>

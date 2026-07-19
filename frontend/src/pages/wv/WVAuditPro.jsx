@@ -115,7 +115,6 @@ export default function WVAuditPro() {
             tabIndex={0}
             style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            <img src="/logo.png" alt="JR Dream Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
             <div>
               <h1 className="wv-header-title" style={{ fontSize: '18px', fontWeight: 600, color: 'var(--zinc-900)', margin: '0 0 2px 0', display: 'block' }}>JR DREAM</h1>
               <p className="wv-header-subtitle" style={{ fontSize: '12px', color: 'var(--zinc-500)', margin: 0, textTransform: 'uppercase' }}>WORKERS VILLAGE ACCOMMODATION AUDIT</p>

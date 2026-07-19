@@ -71,7 +71,6 @@ export default function Login() {
     <div className="login-overlay">
       <div className="login-box">
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <img src="/logo.png" alt="JR Dream Logo" style={{ width: '100px', height: '100px', objectFit: 'contain', margin: '0 auto 1rem', display: 'block' }} />
           <h2 style={{ color: 'var(--primary)', fontSize: '1.1rem', lineHeight: 1.3 }}>FACILITIES MANAGEMENT PORTAL</h2>
           <p style={{ color: 'var(--gray)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
             Sign in to continue

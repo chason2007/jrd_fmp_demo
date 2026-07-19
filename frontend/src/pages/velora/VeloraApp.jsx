@@ -353,7 +353,6 @@ export default function VeloraApp() {
             tabIndex={0}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
           >
-            <img src="/logo.png" alt="JR Dream Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
             <div className="velora-title-section">
               <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--velora-text-main)', margin: '0 0 2px 0' }}>JR DREAM</h1>
               <p style={{ fontSize: '12px', color: 'var(--velora-text-muted)', margin: 0 }}>VELORA FACILITIES PERFORMANCE</p>
@@ -967,23 +966,12 @@ function AuditWorkspace({
         const contentWidth = pageWidth - margin * 2;
         let y = 58;
 
-        let logoB64 = null;
-        try {
-          logoB64 = await fetchLocalImageBase64('/logo.png');
-        } catch (e) {
-          console.error('Failed to load logo for PDF', e);
-        }
-
         const addHeader = (pageNum) => {
           doc.setPage(pageNum);
           doc.setDrawColor(228, 228, 231); // zinc-200
           doc.setFillColor(255, 255, 255);
           doc.rect(0, 0, pageWidth, 45, 'F');
           doc.line(margin, 45, pageWidth - margin, 45);
-
-          if (logoB64) {
-            doc.addImage(logoB64, 'PNG', margin, 5, 30, 30, undefined, 'FAST');
-          }
 
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(13);
@@ -2412,23 +2400,12 @@ function ServiceReportsList() {
       const contentWidth = pageWidth - margin * 2;
       let y = 58;
 
-      let logoB64 = null;
-      try {
-        logoB64 = await fetchLocalImageBase64('/logo.png');
-      } catch (e) {
-        console.error('Failed to load logo for Service Report PDF', e);
-      }
-
       const addHeader = (pageNum) => {
         doc.setPage(pageNum);
         doc.setDrawColor(228, 228, 231); // zinc-200
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, pageWidth, 45, 'F');
         doc.line(margin, 45, pageWidth - margin, 45);
-
-        if (logoB64) {
-          doc.addImage(logoB64, 'PNG', margin, 5, 30, 30, undefined, 'FAST');
-        }
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
@@ -2713,23 +2690,12 @@ function ComplianceList() {
       const contentWidth = pageWidth - margin * 2;
       let y = 58;
 
-      let logoB64 = null;
-      try {
-        logoB64 = await fetchLocalImageBase64('/logo.png');
-      } catch (e) {
-        console.error('Failed to load logo for Compliance PDF', e);
-      }
-
       const addHeader = (pageNum) => {
         doc.setPage(pageNum);
         doc.setDrawColor(228, 228, 231); // zinc-200
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, pageWidth, 45, 'F');
         doc.line(margin, 45, pageWidth - margin, 45);
-
-        if (logoB64) {
-          doc.addImage(logoB64, 'PNG', margin, 5, 30, 30, undefined, 'FAST');
-        }
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);

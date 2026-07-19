@@ -114,23 +114,12 @@ export const generateUnifiedPdf = async (report, { photoEndpoint = '/api/villa/p
   const contentWidth = pageWidth - margin * 2;
   let y = 58;
 
-  let logoB64 = null;
-  try {
-    logoB64 = await fetchLocalImageBase64('/logo.png');
-  } catch (e) {
-    console.error('Failed to load logo for PDF', e);
-  }
-
   const addHeader = (pageNum) => {
     doc.setPage(pageNum);
     doc.setDrawColor(228, 228, 231); // zinc-200
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, pageWidth, 45, 'F');
     doc.line(margin, 45, pageWidth - margin, 45);
-
-    if (logoB64) {
-      doc.addImage(logoB64, 'PNG', margin, 5, 30, 30, undefined, 'FAST');
-    }
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);

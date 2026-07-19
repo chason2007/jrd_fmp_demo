@@ -170,7 +170,6 @@ export default function Dashboard() {
     <div className="app-container">
       <header className="app-header">
         <div className="logo">
-          <img src="/logo.png" alt="JR Dream Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
           <div>
             <h1>{t('jrDreamTitleDashboard', 'JR DREAM')}</h1>
             <p>{t('facilitiesManagementDashboard', 'FACILITIES MANAGEMENT PORTAL')}</p>
