@@ -5,14 +5,14 @@ import { initReactI18next } from 'react-i18next';
 const resources = {
   en: {
     translation: {
-      jrDreamTitle: 'JR DREAM FACILITIES MANAGEMENT PORTAL',
+      jrDreamTitle: 'FACILITIES MANAGEMENT PORTAL',
       facilitiesManagement: 'FACILITIES MANAGEMENT',
       logout: 'Logout',
     },
   },
   ar: {
     translation: {
-      jrDreamTitle: 'بوابة جي آر دريم لإدارة المرافق',
+      jrDreamTitle: 'بوابة إدارة المرافق',
       facilitiesManagement: 'إدارة المرافق',
       logout: 'تسجيل الخروج',
     },

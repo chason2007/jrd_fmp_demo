@@ -52,21 +52,11 @@ export default function Dashboard() {
     setLoadingDrafts(true);
     const foundDrafts = [];
 
-    // 1. Device-held offline drafts (IndexedDB), across all three modules.
+    // 1. Device-held offline drafts (IndexedDB) for Flat Snag module.
     try {
-      const [offVilla, offWv, offVelora] = await Promise.all([
-        listOfflineDrafts('villa').catch(() => []),
-        listOfflineDrafts('wv').catch(() => []),
-        listOfflineDrafts('velora').catch(() => []),
-      ]);
+      const offVilla = await listOfflineDrafts('villa').catch(() => []);
       for (const r of offVilla) {
-        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'villa', title: `${r.label || 'Villa draft'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
-      }
-      for (const r of offWv) {
-        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'wv', title: `${r.label || 'WV audit'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
-      }
-      for (const r of offVelora) {
-        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'velora', title: `${r.label || 'Velora audit'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
+        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'villa', title: `${r.label || 'Flat draft'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
       }
     } catch (e) {
       console.error('Error reading local drafts', e);
@@ -75,47 +65,15 @@ export default function Dashboard() {
     // 2. Fetch server drafts from endpoints (if online)
     if (navigator.onLine) {
       try {
-        const [villaRes, wvRes, veloraRes] = await Promise.all([
-          api.get('/api/villa/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
-          api.get('/api/wv/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
-          api.get('/api/velora/drafts').catch(() => ({ data: { data: { drafts: [] } } }))
-        ]);
-
+        const villaRes = await api.get('/api/villa/drafts').catch(() => ({ data: { data: { drafts: [] } } }));
         const villaDrafts = villaRes.data?.data?.drafts || [];
-        const wvDrafts = wvRes.data?.data?.drafts || [];
-        const veloraDrafts = veloraRes.data?.data?.drafts || [];
 
         villaDrafts.forEach(d => {
-          let propNo = 'Draft';
-          try {
-            const parsed = typeof d.propertyData === 'string' ? JSON.parse(d.propertyData) : d.propertyData;
-            if (parsed?.propertyNo) propNo = parsed.propertyNo;
-          } catch (e) {}
           foundDrafts.push({
             id: d.id,
             type: 'villa',
-            title: `Villa ${propNo}`,
+            title: `Flat ${d.flatNumber}${d.unitNumber ? ` · Unit ${d.unitNumber}` : ''}`,
             description: `Last saved: ${relativeTime(d.updatedAt)}`,
-            data: d
-          });
-        });
-
-        wvDrafts.forEach(d => {
-          foundDrafts.push({
-            id: d.id,
-            type: 'wv',
-            title: `WV Audit (${d.auditType || 'Draft'})`,
-            description: `Building: ${d.building || 'N/A'} · Saved ${relativeTime(d.updatedAt || d.createdAt)}`,
-            data: d
-          });
-        });
-
-        veloraDrafts.forEach(d => {
-          foundDrafts.push({
-            id: d.id,
-            type: 'velora',
-            title: `Velora (${d.serviceCategory || 'Draft'})`,
-            description: `Audit: ${d.auditNumber || 'N/A'} · Saved ${relativeTime(d.updatedAt)}`,
             data: d
           });
         });
@@ -171,8 +129,7 @@ export default function Dashboard() {
       <header className="app-header">
         <div className="logo">
           <div>
-            <h1>{t('jrDreamTitleDashboard', 'JR DREAM')}</h1>
-            <p>{t('facilitiesManagementDashboard', 'FACILITIES MANAGEMENT PORTAL')}</p>
+            <h1>{t('facilitiesManagementDashboard', 'FACILITIES MANAGEMENT PORTAL')}</h1>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -289,35 +246,7 @@ export default function Dashboard() {
               <span className="module-icon"><SnagIcon /></span>
               <div>
                 <h3>Snag Audit</h3>
-                <p>General villa inspections and defect logging.</p>
-              </div>
-            </div>
-
-            <div
-              className="card card-clickable module-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate('/wv')}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/wv'); } }}
-            >
-              <span className="module-icon"><BuildingIcon /></span>
-              <div>
-                <h3>Workers Village</h3>
-                <p>WV specific audits and room inspections.</p>
-              </div>
-            </div>
-
-            <div
-              className="card card-clickable module-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate('/velora')}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/velora'); } }}
-            >
-              <span className="module-icon"><HomeIcon /></span>
-              <div>
-                <h3>Velora Audits</h3>
-                <p>Velora property inspections.</p>
+                <p>General flat inspections and defect logging.</p>
               </div>
             </div>
 

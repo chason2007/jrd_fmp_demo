@@ -18,7 +18,8 @@ const issueInput = z
 
 export const saveInspectionSchema = z
   .object({
-    propertyNumber: z.string().trim().min(1, 'Property number is required').max(100),
+    flatNumber: z.string().trim().min(1, 'Flat number is required').max(100),
+    unitNumber: optStr(100),
     ownerName: z.string().trim().min(1, 'Owner name is required').max(255),
     propertyAddress: optStr(1000),
     emirate: optStr(100),
@@ -32,7 +33,8 @@ export const saveDraftSchema = z
   .object({
     draftId: z.number().int().positive().optional(),
     auditCode: optStr(100),
-    propertyNumber: z.string().trim().min(1, 'Property number is required').max(100),
+    flatNumber: z.string().trim().min(1, 'Flat number is required').max(100),
+    unitNumber: optStr(100),
     ownerName: z.string().trim().min(1, 'Owner name is required').max(255),
     propertyAddress: optStr(1000),
     emirate: optStr(100),

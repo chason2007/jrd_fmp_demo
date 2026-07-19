@@ -582,7 +582,10 @@ export default function AdminPortal() {
                       {audits.map(a => (
                         <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '0.75rem 0.5rem', fontWeight: '500' }}>{a.auditCode}</td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>{a.villa?.propertyNumber}</td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>
+                            Flat {a.villa?.flatNumber}
+                            {a.villa?.unitNumber ? ` · Unit ${a.villa.unitNumber}` : ''}
+                          </td>
                           <td style={{ padding: '0.75rem 0.5rem' }}>{a.auditor?.username || 'Unknown'}</td>
                           <td style={{ padding: '0.75rem 0.5rem' }}>{a.issueCount}</td>
                           <td style={{ padding: '0.75rem 0.5rem', color: 'var(--gray)', fontSize: '0.9rem' }}>

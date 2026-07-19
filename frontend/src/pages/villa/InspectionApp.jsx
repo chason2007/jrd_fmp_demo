@@ -95,8 +95,7 @@ export default function InspectionApp() {
           style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
         >
           <div>
-            <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--zinc-900)', margin: '0 0 2px 0' }}>JR DREAM</h1>
-            <p style={{ fontSize: '12px', color: 'var(--zinc-500)', margin: 0, textTransform: 'uppercase' }}>SNAG AUDIT PORTAL</p>
+            <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--zinc-900)', margin: '0 0 2px 0' }}>SNAG AUDIT PORTAL</h1>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>

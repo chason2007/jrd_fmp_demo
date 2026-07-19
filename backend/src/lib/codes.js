@@ -20,9 +20,9 @@ const FLOOR_CODE = { GROUND: 'G', FIRST: '1', SECOND: '2', THIRD: '3' };
  * code when no property number is given. A random suffix keeps it unique across
  * repeat inspections of the same villa.
  */
-export const newAuditCode = (propertyNumber) => {
-  const villa = slug(propertyNumber);
-  return villa ? `AUD-${villa}-${rand(3)}` : `AUD-${stamp()}-${rand(3)}`;
+export const newAuditCode = (flatNumber) => {
+  const flat = slug(flatNumber);
+  return flat ? `AUD-${flat}-${rand(3)}` : `AUD-${stamp()}-${rand(3)}`;
 };
 export const newDraftCode = () => `DRAFT-${stamp()}-${rand(4)}`;
 export const newStorageKey = (ext) => `${crypto.randomUUID()}.${ext}`;

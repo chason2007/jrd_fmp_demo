@@ -10,7 +10,7 @@ import { EMIRATES, AREA_TYPES, FLOORS, ROOMS, CATEGORIES, SUB_CATEGORIES, ISSUE_
 import { uploadLocalPhoto } from '../../utils/localPhotoStore.js';
 import { newLocalId, deleteOfflineDraft } from '../../lib/offlineDrafts.js';
 
-const emptyProperty = { propertyNumber: '', ownerName: '', propertyAddress: '', emirate: 'Dubai', area: '' };
+const emptyProperty = { flatNumber: '', unitNumber: '', ownerName: '', propertyAddress: '', emirate: 'Dubai', area: '' };
 const emptyDefect = { area: '', floor: '', room: '', category: '', subCategory: '', issueType: '', spotDesc: '', comment: '' };
 
 function Select({ value, onChange, placeholder, options, error }) {
@@ -25,7 +25,8 @@ function Select({ value, onChange, placeholder, options, error }) {
 }
 
 const FIELD_LABELS = {
-  propertyNumber: 'Villa number',
+  flatNumber: 'Flat number',
+  unitNumber: 'Unit number',
   ownerName: 'Owner name',
   area: 'Area type',
   floor: 'Floor',
@@ -62,7 +63,8 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
   useEffect(() => {
     if (!resumeDraft) return;
     setProperty({
-      propertyNumber: resumeDraft.propertyNumber || '',
+      flatNumber: resumeDraft.flatNumber || '',
+      unitNumber: resumeDraft.unitNumber || '',
       ownerName: resumeDraft.ownerName || '',
       propertyAddress: resumeDraft.propertyAddress || '',
       emirate: resumeDraft.emirate || 'Dubai',
@@ -101,12 +103,12 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
       onDraftSaved?.();
     },
     {
-      enabled: started && !busy && !!property.propertyNumber.trim() && !!property.ownerName.trim(),
+      enabled: started && !busy && !!property.flatNumber.trim() && !!property.ownerName.trim(),
       offline: {
         module: 'villa',
         getLocalId: () => localIdRef.current,
         getServerId: () => draftId,
-        getLabel: () => `Villa ${property.propertyNumber || '—'}${property.ownerName ? ` · ${property.ownerName}` : ''}`,
+        getLabel: () => `Flat ${property.flatNumber || '—'}${property.unitNumber ? ` · Unit ${property.unitNumber}` : ''}${property.ownerName ? ` · ${property.ownerName}` : ''}`,
       },
     },
   );
@@ -205,7 +207,7 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
 
   function startInspection() {
     const errors = {};
-    if (!property.propertyNumber.trim()) errors.propertyNumber = `${FIELD_LABELS.propertyNumber} is required.`;
+    if (!property.flatNumber.trim()) errors.flatNumber = `${FIELD_LABELS.flatNumber} is required.`;
     if (!property.ownerName.trim()) errors.ownerName = `${FIELD_LABELS.ownerName} is required.`;
     if (Object.keys(errors).length) {
       setPropertyErrors(errors);
@@ -257,8 +259,8 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
   }
 
   async function handleSaveDraft() {
-    if (!property.propertyNumber.trim() || !property.ownerName.trim()) {
-      show('Villa number and owner name are required.', 'error');
+    if (!property.flatNumber.trim() || !property.ownerName.trim()) {
+      show('Flat number and owner name are required.', 'error');
       return;
     }
     setBusy(true);
@@ -279,8 +281,8 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
   }
 
   async function handleComplete() {
-    if (!property.propertyNumber.trim() || !property.ownerName.trim()) {
-      show('Villa number and owner name are required.', 'error');
+    if (!property.flatNumber.trim() || !property.ownerName.trim()) {
+      show('Flat number and owner name are required.', 'error');
       return;
     }
     if (issues.length === 0) {
@@ -321,16 +323,26 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
             <div className="card-title">Property Information</div>
             <div className="form-grid">
               <div className="form-group">
-                <label className="required">Villa Number</label>
+                <label className="required">Flat Number</label>
                 <input
                   type="text"
-                  value={property.propertyNumber}
-                  onChange={setProp('propertyNumber')}
-                  placeholder="e.g., V001, VILLA-01"
+                  value={property.flatNumber}
+                  onChange={setProp('flatNumber')}
+                  placeholder="e.g., F101, FLAT-01"
                   maxLength={100}
-                  style={propertyErrors.propertyNumber ? { borderColor: 'var(--danger)' } : undefined}
+                  style={propertyErrors.flatNumber ? { borderColor: 'var(--danger)' } : undefined}
                 />
-                <FieldError message={propertyErrors.propertyNumber} />
+                <FieldError message={propertyErrors.flatNumber} />
+              </div>
+              <div className="form-group">
+                <label>Unit Number</label>
+                <input
+                  type="text"
+                  value={property.unitNumber}
+                  onChange={setProp('unitNumber')}
+                  placeholder="e.g., U101, UNIT-01"
+                  maxLength={100}
+                />
               </div>
               <div className="form-group">
                 <label className="required">Owner Name</label>

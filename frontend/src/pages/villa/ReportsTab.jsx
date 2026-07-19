@@ -36,7 +36,8 @@ function buildVillaReport(audit) {
 
   const dateStr = audit.auditDate ? new Date(audit.auditDate).toISOString().split('T')[0] : '';
   const info = [
-    { label: 'Villa Number', value: v.propertyNumber || 'N/A' },
+    { label: 'Flat Number', value: v.flatNumber || 'N/A' },
+    { label: 'Unit Number', value: v.unitNumber || 'N/A' },
     { label: 'Owner', value: v.ownerName || 'N/A' },
     { label: 'Address', value: v.address || 'N/A' },
     { label: 'Location', value: `${v.emirate || ''}${v.area ? ` - ${v.area}` : ''}` || 'N/A' },
@@ -44,8 +45,8 @@ function buildVillaReport(audit) {
   ];
 
   return {
-    reportTitle: 'JR Dream Facilities Audit Report',
-    fileName: `${v.propertyNumber || audit.auditCode || 'Villa'}.pdf`,
+    reportTitle: 'Facilities Audit Report',
+    fileName: `${v.flatNumber || audit.auditCode || 'Flat'}.pdf`,
     info,
     score: null,
     sections,
@@ -118,7 +119,10 @@ export default function ReportsTab({ refreshKey, onLightbox, onStartNew }) {
           reports.map((r) => (
             <div key={r.auditCode} className="report-item">
               <div>
-                <div className="report-title">{r.villa.propertyNumber} — {r.villa.ownerName}</div>
+                <div className="report-title">
+                  Flat {r.villa.flatNumber}
+                  {r.villa.unitNumber ? ` · Unit ${r.villa.unitNumber}` : ''} — {r.villa.ownerName}
+                </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--gray)' }}>
                   {r.auditCode} · {new Date(r.auditDate).toLocaleDateString()} · {r.issueCount} issue(s)
                 </div>

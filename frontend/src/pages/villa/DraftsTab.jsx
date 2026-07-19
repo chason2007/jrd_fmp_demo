@@ -94,7 +94,7 @@ export default function DraftsTab({ refreshKey, onResume, onResumeOffline, onSta
         ) : drafts.length === 0 && offlineDrafts.length === 0 ? (
           <EmptyState
             title="No drafts yet"
-            message="Drafts you save while inspecting a villa will show up here so you can pick up where you left off."
+            message="Drafts you save while inspecting a flat will show up here so you can pick up where you left off."
             ctaLabel="Start a new inspection"
             onCta={onStartNew}
           />
@@ -102,7 +102,10 @@ export default function DraftsTab({ refreshKey, onResume, onResumeOffline, onSta
           drafts.map((d) => (
             <div key={d.id} className="draft-item">
               <div>
-                <div className="report-title">{d.propertyNumber} — {d.ownerName}</div>
+                <div className="report-title">
+                  Flat {d.flatNumber}
+                  {d.unitNumber ? ` · Unit ${d.unitNumber}` : ''} — {d.ownerName}
+                </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--gray)' }}>
                   {d.draftCode} · {d.issueCount} issue(s) · updated {new Date(d.updatedAt).toLocaleString()}
                 </div>

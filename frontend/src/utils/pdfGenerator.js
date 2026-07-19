@@ -84,7 +84,7 @@ const STATUS_RGB = {
 };
 
 /**
- * The unified "JR Dream Facilities Audit Report" layout (the format Velora's
+ * The unified "Facilities Audit Report" layout (the format Velora's
  * audit report uses). Renders header/footer branding, an information box, an
  * optional score/compliance panel, and grouped findings with photos — from a
  * neutral data structure so any module can produce an identical-looking report.
@@ -101,7 +101,7 @@ const STATUS_RGB = {
  */
 export const generateUnifiedPdf = async (report, { photoEndpoint = '/api/villa/photos', returnBlob = false } = {}) => {
   const {
-    reportTitle = 'JR Dream Facilities Audit Report',
+    reportTitle = 'Facilities Audit Report',
     fileName = 'Audit_Report.pdf',
     info = [],
     score = null,
@@ -135,7 +135,6 @@ export const generateUnifiedPdf = async (report, { photoEndpoint = '/api/villa/p
     doc.setTextColor(113, 113, 122); // zinc-500
     doc.text('J R D Real Estate Management L.L.C O.P.C', margin, pageHeight - 14);
     doc.text('Mazyad Mall, Tower 1, Floor 9, Office 30, Abu Dhabi', margin, pageHeight - 10);
-    doc.text('www.jrdream.com', margin, pageHeight - 6);
 
     doc.text(`Page ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
   };

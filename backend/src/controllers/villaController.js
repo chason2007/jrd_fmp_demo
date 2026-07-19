@@ -80,15 +80,16 @@ export async function saveInspection(req, res) {
     throw new HttpError(400, `Every defect requires a remark and at least one photo. ${missingEvidence.length} defect(s) are missing evidence.`);
   }
 
-  const auditCode = newAuditCode(body.propertyNumber);
+  const auditCode = newAuditCode(body.flatNumber);
 
   const result = await prisma.$transaction(async (tx) => {
-    // Get-or-create the villa by property number (matches legacy behaviour).
-    let villa = await tx.villa.findUnique({ where: { propertyNumber: body.propertyNumber } });
+    // Get-or-create the flat by flat number.
+    let villa = await tx.villa.findUnique({ where: { flatNumber: body.flatNumber } });
     if (!villa) {
       villa = await tx.villa.create({
         data: {
-          propertyNumber: body.propertyNumber,
+          flatNumber: body.flatNumber,
+          unitNumber: body.unitNumber || null,
           ownerName: body.ownerName,
           address: body.propertyAddress || null,
           emirate: body.emirate || null,
@@ -150,7 +151,7 @@ export async function listReports(req, res) {
       auditDate: true,
       issueCount: true,
       auditor: { select: { username: true } },
-      villa: { select: { propertyNumber: true, ownerName: true } },
+      villa: { select: { flatNumber: true, unitNumber: true, ownerName: true } },
     },
     orderBy: { auditDate: 'desc' },
     take: 500,
@@ -207,7 +208,8 @@ export async function saveDraft(req, res) {
   const userId = req.user.id;
   const shared = {
     auditCode: body.auditCode || null,
-    propertyNumber: body.propertyNumber,
+    flatNumber: body.flatNumber,
+    unitNumber: body.unitNumber || null,
     ownerName: body.ownerName,
     propertyAddress: body.propertyAddress || null,
     emirate: body.emirate || null,

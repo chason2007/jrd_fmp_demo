@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -111,19 +111,20 @@ model AuditLog {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Audit Forms module (App / JR Dream villa inspection)
+// Audit Forms module (App / Villa inspection)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A property/villa under audit. Replaces legacy `villas`.
 model Villa {
-  id             Int      @id @default(autoincrement())
-  propertyNumber String   @unique @map("property_number") @db.VarChar(100)
-  ownerName      String   @map("owner_name") @db.VarChar(255)
-  address        String?  @db.Text
-  emirate        String?  @db.VarChar(100)
-  area           String?  @db.VarChar(100)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id         Int      @id @default(autoincrement())
+  flatNumber String   @unique @map("flat_number") @db.VarChar(100)
+  unitNumber String?  @map("unit_number") @db.VarChar(100)
+  ownerName  String   @map("owner_name") @db.VarChar(255)
+  address    String?  @db.Text
+  emirate    String?  @db.VarChar(100)
+  area       String?  @db.VarChar(100)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   audits Audit[]
 
@@ -226,7 +227,8 @@ model AuditDraft {
   draftCode       String   @unique @map("draft_code") @db.VarChar(100)
   auditCode       String?  @map("audit_code") @db.VarChar(100)
   auditorId       Int?     @map("auditor_id")
-  propertyNumber  String   @map("property_number") @db.VarChar(100)
+  flatNumber      String   @map("flat_number") @db.VarChar(100)
+  unitNumber      String?  @map("unit_number") @db.VarChar(100)
   ownerName       String   @map("owner_name") @db.VarChar(255)
   propertyAddress String?  @map("property_address") @db.Text
   emirate         String?  @db.VarChar(100)

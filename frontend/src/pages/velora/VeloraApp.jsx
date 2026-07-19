@@ -354,8 +354,7 @@ export default function VeloraApp() {
             style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
           >
             <div className="velora-title-section">
-              <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--velora-text-main)', margin: '0 0 2px 0' }}>JR DREAM</h1>
-              <p style={{ fontSize: '12px', color: 'var(--velora-text-muted)', margin: 0 }}>VELORA FACILITIES PERFORMANCE</p>
+              <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--velora-text-main)', margin: '0 0 2px 0' }}>VELORA FACILITIES PERFORMANCE</h1>
             </div>
           </div>
           <div className="velora-header-actions">
@@ -976,7 +975,7 @@ function AuditWorkspace({
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(13);
           doc.setTextColor(24, 24, 27); // zinc-900
-          doc.text('JR Dream Facilities Audit Report', pageWidth - margin, 25, { align: 'right' });
+          doc.text('Facilities Audit Report', pageWidth - margin, 25, { align: 'right' });
 
           const pageHeight = doc.internal.pageSize.getHeight();
           doc.setDrawColor(228, 228, 231);
@@ -987,7 +986,6 @@ function AuditWorkspace({
           doc.setTextColor(113, 113, 122); // zinc-500
           doc.text('J R D Real Estate Management L.L.C O.P.C', margin, pageHeight - 14);
           doc.text('Mazyad Mall, Tower 1, Floor 9, Office 30, Abu Dhabi', margin, pageHeight - 10);
-          doc.text('www.jrdream.com', margin, pageHeight - 6);
 
           doc.text(`Page ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
         };
@@ -2410,7 +2408,7 @@ function ServiceReportsList() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
         doc.setTextColor(24, 24, 27); // zinc-900
-        doc.text('JR Dream Service Report', pageWidth - margin, 25, { align: 'right' });
+        doc.text('Service Report', pageWidth - margin, 25, { align: 'right' });
 
         const pageHeight = doc.internal.pageSize.getHeight();
         doc.setDrawColor(228, 228, 231);
@@ -2421,7 +2419,6 @@ function ServiceReportsList() {
         doc.setTextColor(113, 113, 122); // zinc-500
         doc.text('J R D Real Estate Management L.L.C O.P.C', margin, pageHeight - 14);
         doc.text('Mazyad Mall, Tower 1, Floor 9, Office 30, Abu Dhabi', margin, pageHeight - 10);
-        doc.text('www.jrdream.com', margin, pageHeight - 6);
 
         doc.text(`Page ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
       };
@@ -2700,7 +2697,7 @@ function ComplianceList() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
         doc.setTextColor(24, 24, 27); // zinc-900
-        doc.text('JR Dream Compliance Report', pageWidth - margin, 25, { align: 'right' });
+        doc.text('Compliance Report', pageWidth - margin, 25, { align: 'right' });
 
         const pageHeight = doc.internal.pageSize.getHeight();
         doc.setDrawColor(228, 228, 231);
@@ -2711,7 +2708,6 @@ function ComplianceList() {
         doc.setTextColor(113, 113, 122); // zinc-500
         doc.text('J R D Real Estate Management L.L.C O.P.C', margin, pageHeight - 14);
         doc.text('Mazyad Mall, Tower 1, Floor 9, Office 30, Abu Dhabi', margin, pageHeight - 10);
-        doc.text('www.jrdream.com', margin, pageHeight - 6);
 
         doc.text(`Page ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
       };
