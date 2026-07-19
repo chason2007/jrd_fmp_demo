@@ -10,7 +10,7 @@ import { EMIRATES, AREA_TYPES, FLOORS, ROOMS, CATEGORIES, SUB_CATEGORIES, ISSUE_
 import { uploadLocalPhoto } from '../../utils/localPhotoStore.js';
 import { newLocalId, deleteOfflineDraft } from '../../lib/offlineDrafts.js';
 
-const emptyProperty = { flatNumber: '', unitNumber: '', ownerName: '', propertyAddress: '', emirate: 'Dubai', area: '' };
+const emptyProperty = { flatNumber: '', unitNumber: '', buildingName: '', ownerName: '', propertyAddress: '', emirate: 'Dubai', area: '' };
 const emptyDefect = { area: '', floor: '', room: '', category: '', subCategory: '', issueType: '', spotDesc: '', comment: '' };
 
 function Select({ value, onChange, placeholder, options, error }) {
@@ -27,6 +27,7 @@ function Select({ value, onChange, placeholder, options, error }) {
 const FIELD_LABELS = {
   flatNumber: 'Flat number',
   unitNumber: 'Unit number',
+  buildingName: 'Building name',
   ownerName: 'Owner name',
   area: 'Area type',
   floor: 'Floor',
@@ -65,6 +66,7 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
     setProperty({
       flatNumber: resumeDraft.flatNumber || '',
       unitNumber: resumeDraft.unitNumber || '',
+      buildingName: resumeDraft.buildingName || '',
       ownerName: resumeDraft.ownerName || '',
       propertyAddress: resumeDraft.propertyAddress || '',
       emirate: resumeDraft.emirate || 'Dubai',
@@ -108,7 +110,7 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
         module: 'villa',
         getLocalId: () => localIdRef.current,
         getServerId: () => draftId,
-        getLabel: () => `Flat ${property.flatNumber || '—'}${property.unitNumber ? ` · Unit ${property.unitNumber}` : ''}${property.ownerName ? ` · ${property.ownerName}` : ''}`,
+        getLabel: () => `Flat ${property.flatNumber || '—'}${property.unitNumber ? ` · Unit ${property.unitNumber}` : ''}${property.buildingName ? ` · ${property.buildingName}` : ''}${property.ownerName ? ` · ${property.ownerName}` : ''}`,
       },
     },
   );
@@ -341,6 +343,16 @@ export default function NewInspectionTab({ resumeDraft, resumeOfflineDraft, onRe
                   value={property.unitNumber}
                   onChange={setProp('unitNumber')}
                   placeholder="e.g., U101, UNIT-01"
+                  maxLength={100}
+                />
+              </div>
+              <div className="form-group">
+                <label>Building Name</label>
+                <input
+                  type="text"
+                  value={property.buildingName}
+                  onChange={setProp('buildingName')}
+                  placeholder="e.g., Tower A, Velora Residencies"
                   maxLength={100}
                 />
               </div>

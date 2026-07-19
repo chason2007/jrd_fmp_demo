@@ -585,6 +585,7 @@ export default function AdminPortal() {
                           <td style={{ padding: '0.75rem 0.5rem' }}>
                             Flat {a.villa?.flatNumber}
                             {a.villa?.unitNumber ? ` · Unit ${a.villa.unitNumber}` : ''}
+                            {a.villa?.buildingName ? ` · ${a.villa.buildingName}` : ''}
                           </td>
                           <td style={{ padding: '0.75rem 0.5rem' }}>{a.auditor?.username || 'Unknown'}</td>
                           <td style={{ padding: '0.75rem 0.5rem' }}>{a.issueCount}</td>

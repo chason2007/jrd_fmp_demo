@@ -38,6 +38,7 @@ function buildVillaReport(audit) {
   const info = [
     { label: 'Flat Number', value: v.flatNumber || 'N/A' },
     { label: 'Unit Number', value: v.unitNumber || 'N/A' },
+    { label: 'Building Name', value: v.buildingName || 'N/A' },
     { label: 'Owner', value: v.ownerName || 'N/A' },
     { label: 'Address', value: v.address || 'N/A' },
     { label: 'Location', value: `${v.emirate || ''}${v.area ? ` - ${v.area}` : ''}` || 'N/A' },
@@ -121,7 +122,8 @@ export default function ReportsTab({ refreshKey, onLightbox, onStartNew }) {
               <div>
                 <div className="report-title">
                   Flat {r.villa.flatNumber}
-                  {r.villa.unitNumber ? ` · Unit ${r.villa.unitNumber}` : ''} — {r.villa.ownerName}
+                  {r.villa.unitNumber ? ` · Unit ${r.villa.unitNumber}` : ''}
+                  {r.villa.buildingName ? ` · ${r.villa.buildingName}` : ''} — {r.villa.ownerName}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--gray)' }}>
                   {r.auditCode} · {new Date(r.auditDate).toLocaleDateString()} · {r.issueCount} issue(s)

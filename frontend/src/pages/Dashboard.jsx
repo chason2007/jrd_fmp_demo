@@ -72,7 +72,7 @@ export default function Dashboard() {
           foundDrafts.push({
             id: d.id,
             type: 'villa',
-            title: `Flat ${d.flatNumber}${d.unitNumber ? ` · Unit ${d.unitNumber}` : ''}`,
+            title: `Flat ${d.flatNumber}${d.unitNumber ? ` · Unit ${d.unitNumber}` : ''}${d.buildingName ? ` · ${d.buildingName}` : ''}`,
             description: `Last saved: ${relativeTime(d.updatedAt)}`,
             data: d
           });

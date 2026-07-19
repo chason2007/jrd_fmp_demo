@@ -25,7 +25,8 @@ export default function ReportView({ audit, onClose, onLightbox }) {
         <div className="flex-between-wrap">
           <div className="card-title" style={{ marginBottom: 0 }}>
             Flat {v.flatNumber}
-            {v.unitNumber ? ` · Unit ${v.unitNumber}` : ''} — {v.ownerName}
+            {v.unitNumber ? ` · Unit ${v.unitNumber}` : ''}
+            {v.buildingName ? ` · ${v.buildingName}` : ''} — {v.ownerName}
           </div>
           <button className="btn-secondary" style={{ padding: '0.3rem 0.8rem' }} onClick={onClose}>Close</button>
         </div>

@@ -104,7 +104,8 @@ export default function DraftsTab({ refreshKey, onResume, onResumeOffline, onSta
               <div>
                 <div className="report-title">
                   Flat {d.flatNumber}
-                  {d.unitNumber ? ` · Unit ${d.unitNumber}` : ''} — {d.ownerName}
+                  {d.unitNumber ? ` · Unit ${d.unitNumber}` : ''}
+                  {d.buildingName ? ` · ${d.buildingName}` : ''} — {d.ownerName}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--gray)' }}>
                   {d.draftCode} · {d.issueCount} issue(s) · updated {new Date(d.updatedAt).toLocaleString()}

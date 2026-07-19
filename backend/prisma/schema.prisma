@@ -116,10 +116,11 @@ model AuditLog {
 
 /// A property/villa under audit. Replaces legacy `villas`.
 model Villa {
-  id         Int      @id @default(autoincrement())
-  flatNumber String   @unique @map("flat_number") @db.VarChar(100)
-  unitNumber String?  @map("unit_number") @db.VarChar(100)
-  ownerName  String   @map("owner_name") @db.VarChar(255)
+  id           Int      @id @default(autoincrement())
+  flatNumber   String   @unique @map("flat_number") @db.VarChar(100)
+  unitNumber   String?  @map("unit_number") @db.VarChar(100)
+  buildingName String?  @map("building_name") @db.VarChar(100)
+  ownerName    String   @map("owner_name") @db.VarChar(255)
   address    String?  @db.Text
   emirate    String?  @db.VarChar(100)
   area       String?  @db.VarChar(100)
@@ -229,6 +230,7 @@ model AuditDraft {
   auditorId       Int?     @map("auditor_id")
   flatNumber      String   @map("flat_number") @db.VarChar(100)
   unitNumber      String?  @map("unit_number") @db.VarChar(100)
+  buildingName    String?  @map("building_name") @db.VarChar(100)
   ownerName       String   @map("owner_name") @db.VarChar(255)
   propertyAddress String?  @map("property_address") @db.Text
   emirate         String?  @db.VarChar(100)
