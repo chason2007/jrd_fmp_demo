@@ -52,11 +52,17 @@ export default function Dashboard() {
     setLoadingDrafts(true);
     const foundDrafts = [];
 
-    // 1. Device-held offline drafts (IndexedDB) for Flat Snag module.
+    // 1. Device-held offline drafts (IndexedDB) for the active modules.
     try {
-      const offVilla = await listOfflineDrafts('villa').catch(() => []);
+      const [offVilla, offApartment] = await Promise.all([
+        listOfflineDrafts('villa').catch(() => []),
+        listOfflineDrafts('apartment').catch(() => []),
+      ]);
       for (const r of offVilla) {
         foundDrafts.push({ id: r.localId, localId: r.localId, type: 'villa', title: `${r.label || 'Flat draft'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
+      }
+      for (const r of offApartment) {
+        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'apartment', title: `${r.label || 'Apartment draft'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
       }
     } catch (e) {
       console.error('Error reading local drafts', e);
@@ -65,14 +71,28 @@ export default function Dashboard() {
     // 2. Fetch server drafts from endpoints (if online)
     if (navigator.onLine) {
       try {
-        const villaRes = await api.get('/api/villa/drafts').catch(() => ({ data: { data: { drafts: [] } } }));
+        const [villaRes, apartmentRes] = await Promise.all([
+          api.get('/api/villa/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
+          api.get('/api/apartment/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
+        ]);
         const villaDrafts = villaRes.data?.data?.drafts || [];
+        const apartmentDrafts = apartmentRes.data?.data?.drafts || [];
 
         villaDrafts.forEach(d => {
           foundDrafts.push({
             id: d.id,
             type: 'villa',
             title: `Flat ${d.flatNumber}${d.unitNumber ? ` · Unit ${d.unitNumber}` : ''}${d.buildingName ? ` · ${d.buildingName}` : ''}`,
+            description: `Last saved: ${relativeTime(d.updatedAt)}`,
+            data: d
+          });
+        });
+
+        apartmentDrafts.forEach(d => {
+          foundDrafts.push({
+            id: d.id,
+            type: 'apartment',
+            title: `Apartment ${d.roomNo || '—'}${d.tenantName ? ` · ${d.tenantName}` : ''}`,
             description: `Last saved: ${relativeTime(d.updatedAt)}`,
             data: d
           });
@@ -89,7 +109,7 @@ export default function Dashboard() {
   const handleResumeDraft = (draft) => {
     // Device-held drafts resume via resumeOfflineDraft (the module maps its
     // stored snapshot back into state); server drafts via resumeDraft.
-    const routes = { villa: '/villa', wv: '/wv', velora: '/velora' };
+    const routes = { villa: '/villa', wv: '/wv', velora: '/velora', apartment: '/apartment' };
     const path = routes[draft.type];
     if (!path) return;
     navigate(path, { state: draft.isLocal ? { resumeOfflineDraft: draft.data } : { resumeDraft: draft.data } });
@@ -112,6 +132,8 @@ export default function Dashboard() {
           await api.delete(`/api/wv/drafts/${draft.id}`);
         } else if (draft.type === 'velora') {
           await api.delete(`/api/velora/drafts/${draft.id}`);
+        } else if (draft.type === 'apartment') {
+          await api.delete(`/api/apartment/drafts/${draft.id}`);
         }
         show('Draft deleted successfully.', 'success');
       }
@@ -247,6 +269,20 @@ export default function Dashboard() {
               <div>
                 <h3>Snag Audit</h3>
                 <p>General flat inspections and defect logging.</p>
+              </div>
+            </div>
+
+            <div
+              className="card card-clickable module-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/apartment')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/apartment'); } }}
+            >
+              <span className="module-icon"><HomeIcon /></span>
+              <div>
+                <h3>Apartment Audit</h3>
+                <p>Room-by-room apartment inspection checklist.</p>
               </div>
             </div>
 

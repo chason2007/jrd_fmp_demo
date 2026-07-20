@@ -12,6 +12,7 @@ import villaRoutes from './routes/villaRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import veloraRoutes from './routes/veloraRoutes.js';
 import wvRoutes from './routes/wvRoutes.js';
+import apartmentRoutes from './routes/apartmentRoutes.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import { startCleanupTask } from './utils/cleanup.js';
 import { logger } from './utils/logger.js';
@@ -97,6 +98,7 @@ app.use('/api/villa', villaRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/velora', veloraRoutes);
 app.use('/api/wv', wvRoutes);
+app.use('/api/apartment', apartmentRoutes);
 
 // In production, serve the compiled React frontend IF it's present. In a
 // same-origin deploy the build sits at ../frontend/dist and we serve it. In a

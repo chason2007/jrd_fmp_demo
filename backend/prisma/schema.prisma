@@ -34,17 +34,19 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  refreshTokens  RefreshToken[]
-  auditLogs      AuditLog[]
-  audits         Audit[]
-  auditDrafts    AuditDraft[]
-  uploadedPhotos Photo[]
+  refreshTokens         RefreshToken[]
+  auditLogs             AuditLog[]
+  audits                Audit[]
+  auditDrafts           AuditDraft[]
+  uploadedPhotos        Photo[]
   passwordResetRequests PasswordResetRequest[]
-  veloraAudits   VeloraAudit[]
-  veloraAuditDrafts VeloraAuditDraft[]
-  veloraPdfReports VeloraPdfReport[]
-  wvAudits       WvAudit[]
-  wvAuditDrafts  WvAuditDraft[]
+  veloraAudits          VeloraAudit[]
+  veloraAuditDrafts     VeloraAuditDraft[]
+  veloraPdfReports      VeloraPdfReport[]
+  wvAudits              WvAudit[]
+  wvAuditDrafts         WvAuditDraft[]
+  apartmentAudits       ApartmentAudit[]
+  apartmentAuditDrafts  ApartmentAuditDraft[]
 
   @@map("users")
 }
@@ -121,11 +123,11 @@ model Villa {
   unitNumber   String?  @map("unit_number") @db.VarChar(100)
   buildingName String?  @map("building_name") @db.VarChar(100)
   ownerName    String   @map("owner_name") @db.VarChar(255)
-  address    String?  @db.Text
-  emirate    String?  @db.VarChar(100)
-  area       String?  @db.VarChar(100)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  address      String?  @db.Text
+  emirate      String?  @db.VarChar(100)
+  area         String?  @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   audits Audit[]
 
@@ -193,27 +195,32 @@ model Issue {
 /// `issueId` is null while a photo is pending (uploaded but not yet attached to a
 /// finalized issue — e.g. referenced by an in-progress draft); set on final save.
 model Photo {
-  id           Int      @id @default(autoincrement())
-  issueId      Int?     @map("issue_id")
+  id               Int      @id @default(autoincrement())
+  issueId          Int?     @map("issue_id")
   /// Set when this photo is attached to a finalized WV audit (parallel to
   /// issueId for Villa). A photo has at most one of issueId/wvAuditId set.
-  wvAuditId    Int?     @map("wv_audit_id")
-  uploadedById Int?     @map("uploaded_by_id")
-  storageKey   String   @unique @map("storage_key") @db.VarChar(255)
-  originalName String?  @map("original_name") @db.VarChar(255)
-  mimeType     String   @map("mime_type") @db.VarChar(100)
-  sizeBytes    Int      @map("size_bytes")
-  sha256       String   @db.Char(64)
-  width        Int?
-  height       Int?
-  createdAt    DateTime @default(now()) @map("created_at")
+  wvAuditId        Int?     @map("wv_audit_id")
+  /// Set when this photo is attached to a finalized Apartment audit (parallel to
+  /// issueId/wvAuditId). A photo has at most one of these set.
+  apartmentAuditId Int?     @map("apartment_audit_id")
+  uploadedById     Int?     @map("uploaded_by_id")
+  storageKey       String   @unique @map("storage_key") @db.VarChar(255)
+  originalName     String?  @map("original_name") @db.VarChar(255)
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  sizeBytes        Int      @map("size_bytes")
+  sha256           String   @db.Char(64)
+  width            Int?
+  height           Int?
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  issue      Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  wvAudit    WvAudit? @relation(fields: [wvAuditId], references: [id], onDelete: Cascade)
-  uploadedBy User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  issue          Issue?          @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  wvAudit        WvAudit?        @relation(fields: [wvAuditId], references: [id], onDelete: Cascade)
+  apartmentAudit ApartmentAudit? @relation(fields: [apartmentAuditId], references: [id], onDelete: Cascade)
+  uploadedBy     User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([issueId])
   @@index([wvAuditId])
+  @@index([apartmentAuditId])
   @@index([uploadedById])
   @@index([sha256])
   @@map("issue_photos")
@@ -280,21 +287,21 @@ model PasswordResetRequest {
 /// (General/Periodic/Specialized Maintenance) are coded by ID. Responses holds
 /// a JSON blob of per-location observations (floors/furniture/walls scoring).
 model VeloraAudit {
-  id               Int      @id @default(autoincrement())
-  auditNumber      String   @unique @map("audit_number") @db.VarChar(50)
-  serviceTypeId    Int      @map("service_type_id")
-  serviceCategory  String   @map("service_category") @db.VarChar(20)
-  auditDate        DateTime @map("audit_date")
-  auditorName      String?  @map("auditor_name") @db.VarChar(100)
-  auditorId        Int?     @map("auditor_id")
-  status           String   @default("submitted") @db.VarChar(20)
-  overallScore     Float?   @map("overall_score")
-  overallRating    String?  @map("overall_rating") @db.VarChar(20)
-  locationData     Json?    @map("location_data")
-  responses        Json?
-  notes            String?  @db.Text
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id              Int      @id @default(autoincrement())
+  auditNumber     String   @unique @map("audit_number") @db.VarChar(50)
+  serviceTypeId   Int      @map("service_type_id")
+  serviceCategory String   @map("service_category") @db.VarChar(20)
+  auditDate       DateTime @map("audit_date")
+  auditorName     String?  @map("auditor_name") @db.VarChar(100)
+  auditorId       Int?     @map("auditor_id")
+  status          String   @default("submitted") @db.VarChar(20)
+  overallScore    Float?   @map("overall_score")
+  overallRating   String?  @map("overall_rating") @db.VarChar(20)
+  locationData    Json?    @map("location_data")
+  responses       Json?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   auditor User? @relation(fields: [auditorId], references: [id], onDelete: SetNull)
 
@@ -305,18 +312,18 @@ model VeloraAudit {
 
 /// Work-in-progress Velora audit draft.
 model VeloraAuditDraft {
-  id               Int      @id @default(autoincrement())
-  draftCode        String   @unique @map("draft_code") @db.VarChar(100)
-  auditNumber      String?  @map("audit_number") @db.VarChar(50)
-  serviceTypeId    Int?     @map("service_type_id")
-  serviceCategory  String?  @map("service_category") @db.VarChar(20)
-  auditDate        DateTime? @map("audit_date")
-  auditorName      String?  @map("auditor_name") @db.VarChar(100)
-  auditorId        Int?     @map("auditor_id")
-  locationData     Json?    @map("location_data")
-  responses        Json?
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id              Int       @id @default(autoincrement())
+  draftCode       String    @unique @map("draft_code") @db.VarChar(100)
+  auditNumber     String?   @map("audit_number") @db.VarChar(50)
+  serviceTypeId   Int?      @map("service_type_id")
+  serviceCategory String?   @map("service_category") @db.VarChar(20)
+  auditDate       DateTime? @map("audit_date")
+  auditorName     String?   @map("auditor_name") @db.VarChar(100)
+  auditorId       Int?      @map("auditor_id")
+  locationData    Json?     @map("location_data")
+  responses       Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   auditor User? @relation(fields: [auditorId], references: [id], onDelete: Cascade)
 
@@ -384,23 +391,23 @@ model VeloraComplianceDelivery {
 /// table now. `auditorId` is the owner (Cascade — a half-finished draft has
 /// no value once its owner is gone), consistent with AuditDraft/VeloraAuditDraft.
 model WvAuditDraft {
-  id            Int      @id @default(autoincrement())
-  draftCode     String   @unique @map("draft_code") @db.VarChar(100)
-  auditCode     String?  @map("audit_code") @db.VarChar(100)
-  auditorId     Int?     @map("auditor_id")
-  auditType     String   @default("rooms") @map("audit_type") @db.VarChar(30)
-  cluster       String?  @db.VarChar(50)
-  building      String?  @db.VarChar(50)
-  floor         String?  @db.VarChar(20)
-  room          String?  @db.VarChar(100)
-  staffName     String?  @map("staff_name") @db.VarChar(150)
-  staffNo       String?  @map("staff_no") @db.VarChar(50)
+  id            Int       @id @default(autoincrement())
+  draftCode     String    @unique @map("draft_code") @db.VarChar(100)
+  auditCode     String?   @map("audit_code") @db.VarChar(100)
+  auditorId     Int?      @map("auditor_id")
+  auditType     String    @default("rooms") @map("audit_type") @db.VarChar(30)
+  cluster       String?   @db.VarChar(50)
+  building      String?   @db.VarChar(50)
+  floor         String?   @db.VarChar(20)
+  room          String?   @db.VarChar(100)
+  staffName     String?   @map("staff_name") @db.VarChar(150)
+  staffNo       String?   @map("staff_no") @db.VarChar(50)
   auditDate     DateTime? @map("audit_date")
-  inspectorName String?  @map("inspector_name") @db.VarChar(150)
+  inspectorName String?   @map("inspector_name") @db.VarChar(150)
   /// Checklist-item responses: { [item]: { answer, comment, photoIds } }
   responses     Json
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   auditor User? @relation(fields: [auditorId], references: [id], onDelete: Cascade)
 
@@ -439,3 +446,67 @@ model WvAudit {
   @@map("wv_audits")
 }
 
+/// Work-in-progress Apartment inspection (autosave). Owned by an auditor.
+/// `responses` references uploaded Photo ids — it never embeds base64 data.
+model ApartmentAuditDraft {
+  id            Int       @id @default(autoincrement())
+  draftCode     String    @unique @map("draft_code") @db.VarChar(100)
+  auditCode     String?   @map("audit_code") @db.VarChar(100)
+  auditorId     Int?      @map("auditor_id")
+  tenantName    String?   @map("tenant_name") @db.VarChar(150)
+  apartmentType String?   @map("apartment_type") @db.VarChar(100)
+  roomNo        String?   @map("room_no") @db.VarChar(50)
+  location      String?   @db.VarChar(255)
+  moveInDate    DateTime? @map("move_in_date")
+  landlordName  String?   @map("landlord_name") @db.VarChar(150)
+  auditDate     DateTime? @map("audit_date")
+  inspectorName String?   @map("inspector_name") @db.VarChar(150)
+  /// How many repeatable Bedroom / Bathroom sections this inspection has.
+  bedroomCount  Int       @default(1) @map("bedroom_count")
+  bathroomCount Int       @default(1) @map("bathroom_count")
+  /// Responses keyed by stable item id: { [key]: { answer, comment, photoIds } }
+  responses     Json
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  auditor User? @relation(fields: [auditorId], references: [id], onDelete: Cascade)
+
+  @@index([auditorId, updatedAt])
+  @@map("apartment_audit_drafts")
+}
+
+/// A completed Apartment inspection. `auditorId` SetNull so the record survives
+/// deletion of the auditor's account (matches Audit/VeloraAudit/WvAudit).
+model ApartmentAudit {
+  id                    Int       @id @default(autoincrement())
+  auditCode             String    @unique @map("audit_code") @db.VarChar(100)
+  auditorId             Int?      @map("auditor_id")
+  tenantName            String?   @map("tenant_name") @db.VarChar(150)
+  apartmentType         String?   @map("apartment_type") @db.VarChar(100)
+  roomNo                String?   @map("room_no") @db.VarChar(50)
+  location              String?   @db.VarChar(255)
+  moveInDate            DateTime? @map("move_in_date")
+  landlordName          String?   @map("landlord_name") @db.VarChar(150)
+  auditDate             DateTime  @map("audit_date")
+  inspectorName         String?   @map("inspector_name") @db.VarChar(150)
+  bedroomCount          Int       @default(1) @map("bedroom_count")
+  bathroomCount         Int       @default(1) @map("bathroom_count")
+  responses             Json
+  /// Score excludes N/A items entirely: Satisfactory=100, Needs Improvement=50,
+  /// Unsatisfactory=0, averaged over the scored items.
+  score                 Float?
+  rating                String?   @db.VarChar(20)
+  totalItems            Int       @default(0) @map("total_items")
+  satisfactoryCount     Int       @default(0) @map("satisfactory_count")
+  needsImprovementCount Int       @default(0) @map("needs_improvement_count")
+  unsatisfactoryCount   Int       @default(0) @map("unsatisfactory_count")
+  naCount               Int       @default(0) @map("na_count")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  auditor User?   @relation(fields: [auditorId], references: [id], onDelete: SetNull)
+  photos  Photo[]
+
+  @@index([auditorId])
+  @@index([auditDate])
+  @@map("apartment_audits")
+}

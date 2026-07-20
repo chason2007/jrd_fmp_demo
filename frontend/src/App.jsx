@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import InspectionApp from './pages/villa/InspectionApp.jsx';
 import WVAuditPro from './pages/wv/WVAuditPro.jsx';
 import VeloraApp from './pages/velora/VeloraApp.jsx';
+import ApartmentAudit from './pages/apartment/ApartmentAudit.jsx';
 import AdminPortal from './pages/admin/AdminPortal.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
@@ -40,6 +41,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <VeloraApp />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/apartment"
+        element={
+          <ProtectedRoute>
+            <ApartmentAudit />
           </ProtectedRoute>
         }
       />

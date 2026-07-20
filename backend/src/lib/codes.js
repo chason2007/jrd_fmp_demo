@@ -44,3 +44,14 @@ export const newWvAuditCode = (meta = {}) => {
   return `WV-${parts.join('-')}-${suffix}`;
 };
 export const newWvDraftCode = () => `WVDRAFT-${stamp()}-${rand(4)}`;
+
+/**
+ * Apartment report number — references the unit so the code is recognizable at
+ * a glance (e.g. `APT-1203-A3F901`). Falls back to a date-based code when no
+ * room/unit number is given. Random suffix keeps repeat inspections unique.
+ */
+export const newApartmentAuditCode = (roomNo) => {
+  const unit = slug(roomNo);
+  return unit ? `APT-${unit}-${rand(3)}` : `APT-${stamp()}-${rand(3)}`;
+};
+export const newApartmentDraftCode = () => `APTDRAFT-${stamp()}-${rand(4)}`;
