@@ -32,10 +32,18 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // If a refresh ever fails mid-session, drop the user.
+    // Fires when ANY API call gets a 401 and the refresh-cookie retry also
+    // fails (dead/expired session, revoked account, etc.) — from any page.
+    // A hard redirect (not just clearing `user` and trusting ProtectedRoute's
+    // re-render) guarantees the bounce to /login happens immediately, even if
+    // other in-flight requests on the dying page would otherwise surface a
+    // confusing error toast a beat before the SPA-level redirect caught up.
     setOnLogout(() => {
       setAccessToken(null);
       setUser(null);
+      if (window.location.pathname !== '/login') {
+        window.location.replace('/login');
+      }
     });
 
     // On first load, try to restore the session from the refresh cookie.

@@ -18,6 +18,7 @@ const apartmentFields = {
   tenantName: optStr(150),
   apartmentType: optStr(100),
   roomNo: optStr(50),
+  apartmentNumber: optStr(50),
   location: optStr(255),
   moveInDate: z.coerce.date().optional().nullable(),
   landlordName: optStr(150),

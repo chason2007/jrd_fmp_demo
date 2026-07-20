@@ -453,25 +453,28 @@ model WvAudit {
 /// Work-in-progress Apartment inspection (autosave). Owned by an auditor.
 /// `responses` references uploaded Photo ids — it never embeds base64 data.
 model ApartmentAuditDraft {
-  id            Int       @id @default(autoincrement())
-  draftCode     String    @unique @map("draft_code") @db.VarChar(100)
-  auditCode     String?   @map("audit_code") @db.VarChar(100)
-  auditorId     Int?      @map("auditor_id")
-  tenantName    String?   @map("tenant_name") @db.VarChar(150)
-  apartmentType String?   @map("apartment_type") @db.VarChar(100)
-  roomNo        String?   @map("room_no") @db.VarChar(50)
-  location      String?   @db.VarChar(255)
-  moveInDate    DateTime? @map("move_in_date")
-  landlordName  String?   @map("landlord_name") @db.VarChar(150)
-  auditDate     DateTime? @map("audit_date")
-  inspectorName String?   @map("inspector_name") @db.VarChar(150)
+  id              Int       @id @default(autoincrement())
+  draftCode       String    @unique @map("draft_code") @db.VarChar(100)
+  auditCode       String?   @map("audit_code") @db.VarChar(100)
+  auditorId       Int?      @map("auditor_id")
+  tenantName      String?   @map("tenant_name") @db.VarChar(150)
+  apartmentType   String?   @map("apartment_type") @db.VarChar(100)
+  /// Physical room in the building (fixed 7-floor/49-room layout), e.g. "204".
+  roomNo          String?   @map("room_no") @db.VarChar(50)
+  /// Separate administrative/lease unit identifier — distinct from roomNo.
+  apartmentNumber String?   @map("apartment_number") @db.VarChar(50)
+  location        String?   @db.VarChar(255)
+  moveInDate      DateTime? @map("move_in_date")
+  landlordName    String?   @map("landlord_name") @db.VarChar(150)
+  auditDate       DateTime? @map("audit_date")
+  inspectorName   String?   @map("inspector_name") @db.VarChar(150)
   /// How many repeatable Bedroom / Bathroom sections this inspection has.
-  bedroomCount  Int       @default(1) @map("bedroom_count")
-  bathroomCount Int       @default(1) @map("bathroom_count")
+  bedroomCount    Int       @default(1) @map("bedroom_count")
+  bathroomCount   Int       @default(1) @map("bathroom_count")
   /// Responses keyed by stable item id: { [key]: { answer, comment, photoIds } }
-  responses     Json
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  responses       Json
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   auditor User? @relation(fields: [auditorId], references: [id], onDelete: Cascade)
 
@@ -488,6 +491,7 @@ model ApartmentAudit {
   tenantName            String?   @map("tenant_name") @db.VarChar(150)
   apartmentType         String?   @map("apartment_type") @db.VarChar(100)
   roomNo                String?   @map("room_no") @db.VarChar(50)
+  apartmentNumber       String?   @map("apartment_number") @db.VarChar(50)
   location              String?   @db.VarChar(255)
   moveInDate            DateTime? @map("move_in_date")
   landlordName          String?   @map("landlord_name") @db.VarChar(150)

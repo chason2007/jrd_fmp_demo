@@ -113,7 +113,7 @@ export default function Dashboard() {
           foundDrafts.push({
             id: d.id,
             type: 'apartment',
-            title: `Apartment ${d.roomNo || '—'}${d.tenantName ? ` · ${d.tenantName}` : ''}`,
+            title: `Apartment ${d.roomNo || '—'}${d.apartmentNumber ? ` · No. ${d.apartmentNumber}` : ''}${d.tenantName ? ` · ${d.tenantName}` : ''}`,
             description: `Last saved: ${relativeTime(d.updatedAt)}`,
             data: d
           });

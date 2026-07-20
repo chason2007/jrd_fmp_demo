@@ -2,9 +2,7 @@
  * Apartment Inspection checklist — transcribed from the reference report.
  *
  * Responses are keyed by `${sectionKey}:${itemIndex}` rather than by the question
- * text, because (a) Bedroom/Bathroom sections repeat and (b) the source template
- * legitimately repeats item labels within a section (Bedroom lists "Smoke Alarm"
- * twice). Indexing keeps every answer distinct.
+ * text, because Bedroom/Bathroom sections repeat. Indexing keeps every answer distinct.
  */
 
 export const RESPONSE_OPTIONS = ['Satisfactory', 'Needs Improvement', 'Unsatisfactory', 'N/A'];
@@ -106,7 +104,7 @@ export const FIXED_SECTIONS = [
   },
 ];
 
-/** Repeated once per bedroom. Duplicate labels are intentional (match the source). */
+/** Repeated once per bedroom. */
 export const BEDROOM_ITEMS = [
   'Floors & Floor Covering(s)',
   'Walls & Ceilings',
@@ -116,7 +114,6 @@ export const BEDROOM_ITEMS = [
   'Smoke Alarm',
   'Door(s)',
   'Light Fixture(s)',
-  'Smoke Alarm',
   'Door Lock(s) & Hardware(s)',
 ];
 

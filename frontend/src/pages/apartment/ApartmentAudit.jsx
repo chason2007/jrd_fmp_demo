@@ -32,6 +32,7 @@ const emptyMeta = {
   tenantName: '',
   apartmentType: '',
   roomNo: '',
+  apartmentNumber: '',
   location: '',
   moveInDate: '',
   landlordName: '',
@@ -66,6 +67,7 @@ const metaToWire = (meta) => ({
   tenantName: meta.tenantName || undefined,
   apartmentType: meta.apartmentType || undefined,
   roomNo: meta.roomNo || undefined,
+  apartmentNumber: meta.apartmentNumber || undefined,
   location: meta.location || undefined,
   moveInDate: meta.moveInDate || undefined,
   landlordName: meta.landlordName || undefined,
@@ -216,6 +218,7 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
       tenantName: resumeDraft.tenantName || '',
       apartmentType: resumeDraft.apartmentType || '',
       roomNo: resumeDraft.roomNo || '',
+      apartmentNumber: resumeDraft.apartmentNumber || '',
       location: resumeDraft.location || '',
       moveInDate: toLocalDateInput(resumeDraft.moveInDate),
       landlordName: resumeDraft.landlordName || '',
@@ -269,7 +272,7 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
 
   function startChecklist() {
     if (!meta.roomNo.trim()) {
-      show('Room / Apartment No is required.', 'error');
+      show('Room is required.', 'error');
       return;
     }
     setPhase('checklist');
@@ -349,7 +352,7 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="required">Room / Apartment No</label>
+                <label className="required">Room</label>
                 <select value={meta.roomNo} onChange={(e) => setM('roomNo')(e.target.value)}>
                   <option value="">Select room…</option>
                   {ROOMS_BY_FLOOR.map(({ floor, rooms }) => (
@@ -359,9 +362,12 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
                   ))}
                 </select>
               </div>
-              <div className="form-group"><label>Landlord / Manager</label><input value={meta.landlordName} onChange={(e) => setM('landlordName')(e.target.value)} /></div>
+              <div className="form-group"><label>Apartment Number</label><input value={meta.apartmentNumber} onChange={(e) => setM('apartmentNumber')(e.target.value)} /></div>
             </div>
-            <div className="form-group"><label>Location</label><input value={meta.location} onChange={(e) => setM('location')(e.target.value)} /></div>
+            <div className="form-row">
+              <div className="form-group"><label>Landlord / Manager</label><input value={meta.landlordName} onChange={(e) => setM('landlordName')(e.target.value)} /></div>
+              <div className="form-group"><label>Location</label><input value={meta.location} onChange={(e) => setM('location')(e.target.value)} /></div>
+            </div>
             <div className="form-row">
               <div className="form-group"><label>Move In Date</label><input type="date" value={meta.moveInDate} onChange={(e) => setM('moveInDate')(e.target.value)} /></div>
               <div className="form-group"><label>Date of Inspection</label><input type="date" value={meta.auditDate} onChange={(e) => setM('auditDate')(e.target.value)} /></div>
@@ -396,7 +402,7 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
 
           <div className="card">
             <div className="card-title">
-              {meta.roomNo ? `Apartment ${meta.roomNo}` : 'Apartment'}{meta.tenantName ? ` — ${meta.tenantName}` : ''}
+              {meta.roomNo ? `Apartment ${meta.roomNo}` : 'Apartment'}{meta.apartmentNumber ? ` · No. ${meta.apartmentNumber}` : ''}{meta.tenantName ? ` — ${meta.tenantName}` : ''}
             </div>
             <div style={{ padding: '0.75rem 1rem' }}>
               <button className="btn-secondary" onClick={() => setPhase('setup')}>Edit apartment details</button>
@@ -591,7 +597,7 @@ function DraftsList({ refreshKey, onResume, onResumeOffline, onStartNew }) {
         ) : drafts.map((d) => (
           <div key={d.id} className="draft-item">
             <div>
-              <div className="report-title">Apartment {d.roomNo || '—'}{d.tenantName ? ` · ${d.tenantName}` : ''}</div>
+              <div className="report-title">Apartment {d.roomNo || '—'}{d.apartmentNumber ? ` · No. ${d.apartmentNumber}` : ''}{d.tenantName ? ` · ${d.tenantName}` : ''}</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--gray)' }}>
                 {d.draftCode} · updated {new Date(d.updatedAt).toLocaleString()}
               </div>
@@ -639,6 +645,7 @@ function buildApartmentReport(audit) {
     { label: 'Location', value: audit.location || 'N/A' },
     { label: 'Inspection Date', value: `${fmt(audit.auditDate)}  |  Inspector: ${audit.inspectorName || ''}` },
   ];
+  if (audit.apartmentNumber) info.push({ label: 'Apartment Number', value: audit.apartmentNumber });
   if (audit.landlordName) info.push({ label: 'Landlord / Manager', value: audit.landlordName });
   if (audit.moveInDate) info.push({ label: 'Move In Date', value: fmt(audit.moveInDate) });
 
@@ -707,7 +714,7 @@ function ReportsList({ onStartNew }) {
         ) : reports.map((r) => (
           <div key={r.auditCode} className="report-item">
             <div>
-              <div className="report-title">Apartment {r.roomNo || '—'}{r.tenantName ? ` · ${r.tenantName}` : ''}</div>
+              <div className="report-title">Apartment {r.roomNo || '—'}{r.apartmentNumber ? ` · No. ${r.apartmentNumber}` : ''}{r.tenantName ? ` · ${r.tenantName}` : ''}</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--gray)' }}>
                 {r.auditCode} · {new Date(r.auditDate).toLocaleDateString()} · {r.score != null ? `${r.score}%` : '—'}
                 {(r.needsImprovementCount + r.unsatisfactoryCount) > 0 ? ` · ${r.needsImprovementCount + r.unsatisfactoryCount} issue(s)` : ''}
