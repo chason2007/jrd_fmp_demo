@@ -75,12 +75,14 @@ const fetchLocalImageBase64 = async (url) => {
   }
 };
 
-// Maps a finding status to Velora's colour convention for the bullet heading.
+// Fill colour for a finding's status bar — the same ok/warn/danger accents the
+// rest of the app uses (index.css --ok/--warn-solid/--danger), not a separate
+// PDF-only palette. `null` covers N/A and any item that doesn't carry a status.
 const STATUS_RGB = {
-  ok: [22, 101, 52],    // green-800
-  warn: [133, 77, 14],  // amber-800
-  bad: [153, 27, 27],   // red-800
-  null: [24, 24, 27],   // zinc-900 (no status)
+  ok: [22, 163, 74],    // green-600 — Satisfactory / Compliant
+  warn: [217, 119, 6],  // amber-600 — Needs Improvement
+  bad: [220, 38, 38],   // red-600   — Unsatisfactory / Non-Compliant / Defect
+  null: [113, 113, 122], // zinc-500 — N/A or unscored
 };
 
 /**
@@ -209,33 +211,67 @@ export const generateUnifiedPdf = async (report, { photoEndpoint = '/api/villa/p
     if (!section.items || section.items.length === 0) continue;
     ensureSpace(20);
 
+    // Stats derived from the items themselves (no caller wiring needed): a
+    // status of ok/warn/bad counts as "scored", anything else (N/A, unscored)
+    // is excluded from the denominator — same rule scoreApartment() uses.
+    const scored = section.items.filter((it) => it.status === 'ok' || it.status === 'warn' || it.status === 'bad');
+    const flagged = scored.filter((it) => it.status === 'warn' || it.status === 'bad').length;
+    const compliant = scored.filter((it) => it.status === 'ok').length;
+    const statsText = scored.length
+      ? `${flagged} flagged, ${compliant}/${scored.length} (${Math.round((compliant / scored.length) * 1000) / 10}%)`
+      : '';
+
+    doc.setFillColor(244, 244, 245); // zinc-100
+    doc.rect(margin, y, contentWidth, 9, 'F');
+    doc.setDrawColor(228, 228, 231); // zinc-200
+    doc.setLineWidth(0.2);
+    doc.line(margin, y + 9, margin + contentWidth, y + 9);
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.setTextColor(255, 255, 255);
-    doc.setFillColor(39, 39, 42); // zinc-800
-    doc.rect(margin, y, contentWidth, 8, 'F');
-    doc.text(String(section.title).toUpperCase(), margin + 4, y + 5.5);
-    y += 14;
+    doc.setTextColor(24, 24, 27); // zinc-900
+    doc.text(String(section.title).toUpperCase(), margin + 3, y + 6);
+    if (statsText) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(82, 82, 91); // zinc-600
+      doc.text(statsText, margin + contentWidth - 3, y + 6, { align: 'right' });
+    }
+    y += 13;
+
+    const labelW = contentWidth * 0.6;
+    const barW = contentWidth - labelW;
 
     for (const item of section.items) {
-      ensureSpace(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      const splitHeading = doc.splitTextToSize(item.heading, labelW - 6);
+      const rowH = Math.max(9, splitHeading.length * 4.6 + 3);
+      ensureSpace(rowH + 2);
 
       const rgb = STATUS_RGB[item.status] || STATUS_RGB.null;
+      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+      doc.rect(margin + labelW, y, barW, rowH, 'F');
+
+      doc.setTextColor(24, 24, 27); // zinc-900 — label sits on the white left zone
+      doc.text(splitHeading, margin + 3, y + rowH / 2 + 1.5);
+
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(rgb[0], rgb[1], rgb[2]);
-      const headingText = item.statusLabel ? `• ${item.heading}: ${item.statusLabel}` : `• ${item.heading}`;
-      const splitHeading = doc.splitTextToSize(headingText, contentWidth - 4);
-      doc.text(splitHeading, margin + 4, y);
-      y += 5 * splitHeading.length;
+      doc.setFontSize(8.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(item.statusLabel || '', margin + contentWidth - 3, y + rowH / 2 + 1.5, { align: 'right' });
+      // +2 buffer so the closing divider (drawn at y-2, below) lands AT the bar's
+      // bottom edge rather than cutting across it when there are no remarks/photos.
+      y += rowH + 2;
 
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
       doc.setTextColor(82, 82, 91); // zinc-600
       for (const line of item.lines || []) {
         const split = doc.splitTextToSize(`  ${line}`, contentWidth - 8);
-        ensureSpace(4.5 * split.length);
-        doc.text(split, margin + 4, y);
-        y += 4.5 * split.length;
+        ensureSpace(4.5 * split.length + 3);
+        doc.text(split, margin + 4, y + 5);
+        y += 4.5 * split.length + 3;
       }
 
       // Photos (fetched by id) or inline images

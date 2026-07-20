@@ -28,6 +28,10 @@ function buildVillaReport(audit) {
         if (i.comment) lines.push(`Remarks: ${i.comment}`);
         return {
           heading: `${i.category || 'Observation'}${i.subCategory ? ` - ${i.subCategory}` : ''}`,
+          // A listed snag IS a non-compliance (there's no "compliant" defect
+          // entry) — colour it the same as a non-compliant finding elsewhere.
+          status: 'bad',
+          statusLabel: 'Defect',
           lines,
           photos: (i.photos || []).map((p) => ({ id: p.id })).filter((p) => p.id),
         };
