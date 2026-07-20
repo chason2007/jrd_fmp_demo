@@ -9,6 +9,28 @@
 
 export const RESPONSE_OPTIONS = ['Satisfactory', 'Needs Improvement', 'Unsatisfactory', 'N/A'];
 
+/**
+ * Building layout: 7 floors, 7 rooms each — 101–107, 201–207, … 701–707.
+ * Room numbers encode their floor (first digit), so the floor isn't stored
+ * separately; derive it with floorOfRoom() when needed.
+ */
+export const FLOOR_COUNT = 7;
+export const ROOMS_PER_FLOOR = 7;
+
+export const ROOMS_BY_FLOOR = Array.from({ length: FLOOR_COUNT }, (_, f) => ({
+  floor: f + 1,
+  rooms: Array.from({ length: ROOMS_PER_FLOOR }, (_, r) => `${f + 1}0${r + 1}`),
+}));
+
+/** Every valid room number, flat. */
+export const ALL_ROOMS = ROOMS_BY_FLOOR.flatMap((f) => f.rooms);
+
+/** Floor a room number sits on (101 → 1, 704 → 7); null if not a known room. */
+export const floorOfRoom = (roomNo) => {
+  const s = String(roomNo || '').trim();
+  return ALL_ROOMS.includes(s) ? Number(s[0]) : null;
+};
+
 /** Answers that count as a non-compliance and therefore require a remark + photo. */
 export const NON_COMPLIANT_ANSWERS = ['Needs Improvement', 'Unsatisfactory'];
 

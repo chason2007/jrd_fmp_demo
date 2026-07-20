@@ -19,6 +19,7 @@ import { newLocalId, listOfflineDrafts, deleteOfflineDraft, syncOfflineDrafts } 
 import {
   RESPONSE_OPTIONS,
   NON_COMPLIANT_ANSWERS,
+  ROOMS_BY_FLOOR,
   buildSections,
   itemKey,
   totalItemCount,
@@ -346,7 +347,17 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
               <div className="form-group"><label>Apartment Type</label><input value={meta.apartmentType} onChange={(e) => setM('apartmentType')(e.target.value)} placeholder="e.g. 2 BHK" /></div>
             </div>
             <div className="form-row">
-              <div className="form-group"><label className="required">Room / Apartment No</label><input value={meta.roomNo} onChange={(e) => setM('roomNo')(e.target.value)} /></div>
+              <div className="form-group">
+                <label className="required">Room / Apartment No</label>
+                <select value={meta.roomNo} onChange={(e) => setM('roomNo')(e.target.value)}>
+                  <option value="">Select room…</option>
+                  {ROOMS_BY_FLOOR.map(({ floor, rooms }) => (
+                    <optgroup key={floor} label={`Floor ${floor}`}>
+                      {rooms.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
               <div className="form-group"><label>Landlord / Manager</label><input value={meta.landlordName} onChange={(e) => setM('landlordName')(e.target.value)} /></div>
             </div>
             <div className="form-group"><label>Location</label><input value={meta.location} onChange={(e) => setM('location')(e.target.value)} /></div>
