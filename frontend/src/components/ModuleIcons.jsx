@@ -41,6 +41,15 @@ export function HomeIcon() {
   );
 }
 
+export function SparkleIcon() {
+  return (
+    <svg {...base}>
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M6.3 17.7l2.1-2.1M15.6 8.4l2.1-2.1" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
 export function GearIcon() {
   return (
     <svg {...base}>

@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireRole, requireModule } from '../middleware/auth.js';
 import { validate, validateParams } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { uploadSinglePhoto } from '../middleware/upload.js';
@@ -11,6 +11,7 @@ const router = Router();
 router.use(express.json({ limit: '1mb' })); // photos go via multipart (multer), so JSON stays small
 router.use(requireAuth); // every route in this module requires a valid session
 router.use(requireRole('ADMIN', 'AUDITOR'));
+router.use(requireModule('villa'));
 router.use(mutationRateLimiter); // per-user cap on writes (skips GETs)
 
 // Photos

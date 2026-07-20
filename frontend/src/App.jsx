@@ -23,7 +23,7 @@ export default function App() {
       <Route
         path="/villa"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute module="villa">
             <InspectionApp />
           </ProtectedRoute>
         }
@@ -31,7 +31,7 @@ export default function App() {
       <Route
         path="/wv"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute module="wv">
             <WVAuditPro />
           </ProtectedRoute>
         }
@@ -39,7 +39,7 @@ export default function App() {
       <Route
         path="/velora"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute module="velora">
             <VeloraApp />
           </ProtectedRoute>
         }
@@ -47,7 +47,7 @@ export default function App() {
       <Route
         path="/apartment"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute module="apartment">
             <ApartmentAudit />
           </ProtectedRoute>
         }

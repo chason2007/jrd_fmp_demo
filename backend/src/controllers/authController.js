@@ -16,7 +16,7 @@ import { HttpError } from '../utils/httpError.js';
 // response time is the same whether or not the account exists (anti user-enumeration).
 const DUMMY_HASH = await argon2.hash('argon2id-timing-equalizer-placeholder');
 
-const publicUser = (u) => ({ id: u.id, username: u.username, role: u.role });
+const publicUser = (u) => ({ id: u.id, username: u.username, role: u.role, enabledModules: u.enabledModules });
 const trimUA = (req) => (req.headers['user-agent'] || '').slice(0, 255);
 
 /** POST /api/auth/login */

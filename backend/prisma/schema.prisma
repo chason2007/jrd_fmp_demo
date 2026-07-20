@@ -23,16 +23,20 @@ enum Role {
 /// A single, shared user table (replaces the legacy `sec_users` that was
 /// duplicated into every app database). Passwords are Argon2id hashes.
 model User {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique @db.VarChar(100)
-  passwordHash String   @map("password_hash") @db.VarChar(255)
-  role         Role     @default(AUDITOR)
+  id             Int      @id @default(autoincrement())
+  username       String   @unique @db.VarChar(100)
+  passwordHash   String   @map("password_hash") @db.VarChar(255)
+  role           Role     @default(AUDITOR)
   /// Soft-disable: admins can deactivate an auditor without deleting history.
-  isActive     Boolean  @default(true) @map("is_active")
-  name         String?  @db.VarChar(100)
-  idNumber     String?  @map("id_number") @db.VarChar(50)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  isActive       Boolean  @default(true) @map("is_active")
+  name           String?  @db.VarChar(100)
+  idNumber       String?  @map("id_number") @db.VarChar(50)
+  /// Which audit modules ('villa' | 'apartment' | 'wv' | 'velora') this user can
+  /// open. Set only by a SUPERADMIN (see adminController.updateUserModules).
+  /// Snag (villa) + Apartment are on by default; WV/Velora are opt-in per user.
+  enabledModules String[] @default(["villa", "apartment"]) @map("enabled_modules")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   refreshTokens         RefreshToken[]
   auditLogs             AuditLog[]

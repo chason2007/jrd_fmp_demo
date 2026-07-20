@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireRole, requireModule } from '../middleware/auth.js';
 import { validate, validateParams } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import {
@@ -18,6 +18,7 @@ const router = Router();
 router.use(express.json({ limit: '20mb' }));
 router.use(requireAuth); // All routes require authentication
 router.use(requireRole('ADMIN', 'AUDITOR'));
+router.use(requireModule('velora'));
 router.use(mutationRateLimiter); // per-user cap on writes (skips GETs)
 
 // Config/Metadata

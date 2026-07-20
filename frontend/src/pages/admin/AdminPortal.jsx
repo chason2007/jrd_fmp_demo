@@ -7,6 +7,20 @@ import { api, errorMessage } from '../../api/client.js';
 import NetworkStatus from '../../components/NetworkStatus.jsx';
 import ListSkeleton from '../../components/ListSkeleton.jsx';
 import ThemeToggle from '../../components/ThemeToggle.jsx';
+import { MODULES } from '../../lib/modules.js';
+
+/** Flip one module key in/out of an enabledModules array. */
+function toggleModuleKey(list, key) {
+  const set = new Set(list || []);
+  if (set.has(key)) set.delete(key); else set.add(key);
+  return MODULES.filter((m) => set.has(m.key)).map((m) => m.key); // stable, canonical order
+}
+
+/** Compact "Snag, Apartment" summary of a user's enabled modules for the table. */
+function moduleSummary(enabledModules) {
+  if (!enabledModules || enabledModules.length === 0) return 'None';
+  return MODULES.filter((m) => enabledModules.includes(m.key)).map((m) => m.label).join(', ');
+}
 
 export default function AdminPortal() {
   const { user, logout } = useAuth();
@@ -47,7 +61,7 @@ export default function AdminPortal() {
   });
 
   // New user form state
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'AUDITOR', name: '', idNumber: '' });
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'AUDITOR', name: '', idNumber: '', enabledModules: ['villa', 'apartment'] });
   const [formError, setFormError] = useState('');
 
   // Protect route
@@ -141,6 +155,12 @@ export default function AdminPortal() {
         name: editUserModal.name,
         idNumber: editUserModal.idNumber
       });
+      // Module access is a separate, superadmin-only endpoint (see updateUserModules).
+      if (user?.role === 'SUPERADMIN') {
+        await api.put(`/api/admin/users/${editUserModal.id}/modules`, {
+          enabledModules: editUserModal.enabledModules || [],
+        });
+      }
       setEditUserModal(null);
       show('User details updated successfully.', 'success');
       fetchUsers();
@@ -250,7 +270,7 @@ export default function AdminPortal() {
     try {
       await api.post('/api/admin/users', newUser);
       show('User created successfully.', 'success');
-      setNewUser({ username: '', password: '', role: 'AUDITOR', name: '', idNumber: '' });
+      setNewUser({ username: '', password: '', role: 'AUDITOR', name: '', idNumber: '', enabledModules: ['villa', 'apartment'] });
       fetchUsers();
     } catch (e) {
       const errText = errorMessage(e, 'Failed to create user');
@@ -402,6 +422,21 @@ export default function AdminPortal() {
                   <option value="AUDITOR">Auditor</option>
                   <option value="ADMIN">Admin</option>
                 </select>
+                {user?.role === 'SUPERADMIN' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--zinc-500)', fontWeight: 600 }}>Modules:</span>
+                    {MODULES.map((m) => (
+                      <label key={m.key} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={newUser.enabledModules.includes(m.key)}
+                          onChange={() => setNewUser({ ...newUser, enabledModules: toggleModuleKey(newUser.enabledModules, m.key) })}
+                        />
+                        {m.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <button type="submit" className="btn-primary">Create User</button>
               </form>
             </div>
@@ -414,6 +449,7 @@ export default function AdminPortal() {
                   <th style={{ padding: '0.5rem' }}>ID Number</th>
                   <th style={{ padding: '0.5rem' }}>Role</th>
                   <th style={{ padding: '0.5rem' }}>Status</th>
+                  <th style={{ padding: '0.5rem' }}>Modules</th>
                   <th style={{ padding: '0.5rem', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -441,6 +477,9 @@ export default function AdminPortal() {
                       ) : (
                         <span style={{ color: 'var(--red)', fontWeight: '500' }}>Suspended</span>
                       )}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.8rem', color: 'var(--zinc-600)' }}>
+                      {moduleSummary(u.enabledModules)}
                     </td>
                     <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
@@ -946,6 +985,23 @@ export default function AdminPortal() {
                   style={{ width: '100%' }}
                 />
               </div>
+              {user?.role === 'SUPERADMIN' && (
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--zinc-500)', display: 'block', marginBottom: '4px' }}>Enabled Modules</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {MODULES.map((m) => (
+                      <label key={m.key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={(editUserModal.enabledModules || []).includes(m.key)}
+                          onChange={() => setEditUserModal({ ...editUserModal, enabledModules: toggleModuleKey(editUserModal.enabledModules, m.key) })}
+                        />
+                        {m.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
                 <button type="button" className="btn-secondary" onClick={() => setEditUserModal(null)}>
                   Cancel

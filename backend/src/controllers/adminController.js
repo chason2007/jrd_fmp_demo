@@ -44,6 +44,7 @@ export async function getUsers(req, res) {
       createdAt: true,
       name: true,
       idNumber: true,
+      enabledModules: true,
     },
     orderBy: { createdAt: 'desc' }
   });
@@ -52,7 +53,7 @@ export async function getUsers(req, res) {
 
 // Create a new user
 export async function createUser(req, res) {
-  const { username, password, role, name, idNumber } = req.body; // validated + length-checked by createUserSchema
+  const { username, password, role, name, idNumber, enabledModules } = req.body; // validated + length-checked by createUserSchema
 
   // An ADMIN can only ever create AUDITORs; only a SUPERADMIN may create ADMIN/SUPERADMIN.
   assertCanAssignRole(req.user.role, role || 'AUDITOR');
@@ -70,8 +71,12 @@ export async function createUser(req, res) {
       role: role || 'AUDITOR',
       name,
       idNumber,
+      // Module access is a superadmin-only decision (like role escalation above);
+      // an ADMIN actor sending this field is silently ignored, not rejected —
+      // the new user just gets the schema default (villa + apartment).
+      ...(req.user.role === 'SUPERADMIN' && enabledModules ? { enabledModules } : {}),
     },
-    select: { id: true, username: true, role: true, isActive: true, name: true, idNumber: true }
+    select: { id: true, username: true, role: true, isActive: true, name: true, idNumber: true, enabledModules: true }
   });
 
   await writeAudit({ userId: req.user.id, action: 'CREATE_USER', entityType: 'user', entityId: user.id.toString(), ip: req.ip });
@@ -249,6 +254,25 @@ export async function updateUserRole(req, res) {
   });
 
   await writeAudit({ userId: req.user.id, action: 'UPDATE_USER_ROLE', entityType: 'user', entityId: String(id), ip: req.ip, metadata: { role } });
+  res.json({ success: true, data: { user } });
+}
+
+// Set which audit modules a user can open. Route-gated to SUPERADMIN only (see
+// adminRoutes.js) — unlike the other user-management actions above, this is not
+// something an ADMIN can do for their auditors, so there's no loadManageableTarget
+// boundary check here (matches the purge* functions, which are also
+// superadmin-only and act without that check).
+export async function updateUserModules(req, res) {
+  const { id } = req.params;
+  const { enabledModules } = req.body; // validated against the module allow-list by updateModulesSchema
+
+  const user = await prisma.user.update({
+    where: { id: Number.parseInt(id, 10) },
+    data: { enabledModules },
+    select: { id: true, username: true, enabledModules: true },
+  });
+
+  await writeAudit({ userId: req.user.id, action: 'UPDATE_USER_MODULES', entityType: 'user', entityId: String(id), ip: req.ip, metadata: { enabledModules } });
   res.json({ success: true, data: { user } });
 }
 

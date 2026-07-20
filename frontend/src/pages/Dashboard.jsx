@@ -7,9 +7,10 @@ import { api } from '../api/client.js';
 import NetworkStatus from '../components/NetworkStatus.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import { useConfirm } from '../context/ConfirmContext.jsx';
-import { SnagIcon, BuildingIcon, HomeIcon, GearIcon } from '../components/ModuleIcons.jsx';
+import { SnagIcon, BuildingIcon, HomeIcon, GearIcon, SparkleIcon } from '../components/ModuleIcons.jsx';
 import { cleanLocalPhotosForDraft } from '../utils/localPhotoStore.js';
 import { listOfflineDrafts, deleteOfflineDraft } from '../lib/offlineDrafts.js';
+import { canAccessModule } from '../lib/modules.js';
 
 /** "3 min ago" / "2 hours ago" — falls back to a full date past a week. */
 function relativeTime(dateInput) {
@@ -52,17 +53,32 @@ export default function Dashboard() {
     setLoadingDrafts(true);
     const foundDrafts = [];
 
-    // 1. Device-held offline drafts (IndexedDB) for the active modules.
+    // Only touch a module the user actually has enabled — the API would 403 an
+    // enabledModules-gated endpoint otherwise, and there's nothing to show anyway.
+    const hasVilla = canAccessModule(user, 'villa');
+    const hasApartment = canAccessModule(user, 'apartment');
+    const hasWv = canAccessModule(user, 'wv');
+    const hasVelora = canAccessModule(user, 'velora');
+
+    // 1. Device-held offline drafts (IndexedDB) for the user's enabled modules.
     try {
-      const [offVilla, offApartment] = await Promise.all([
-        listOfflineDrafts('villa').catch(() => []),
-        listOfflineDrafts('apartment').catch(() => []),
+      const [offVilla, offApartment, offWv, offVelora] = await Promise.all([
+        hasVilla ? listOfflineDrafts('villa').catch(() => []) : [],
+        hasApartment ? listOfflineDrafts('apartment').catch(() => []) : [],
+        hasWv ? listOfflineDrafts('wv').catch(() => []) : [],
+        hasVelora ? listOfflineDrafts('velora').catch(() => []) : [],
       ]);
       for (const r of offVilla) {
         foundDrafts.push({ id: r.localId, localId: r.localId, type: 'villa', title: `${r.label || 'Flat draft'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
       }
       for (const r of offApartment) {
         foundDrafts.push({ id: r.localId, localId: r.localId, type: 'apartment', title: `${r.label || 'Apartment draft'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
+      }
+      for (const r of offWv) {
+        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'wv', title: `${r.label || 'WV audit'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
+      }
+      for (const r of offVelora) {
+        foundDrafts.push({ id: r.localId, localId: r.localId, type: 'velora', title: `${r.label || 'Velora audit'} (On this device)`, description: `Saved ${relativeTime(r.updatedAt)} · not synced`, isLocal: true, data: r });
       }
     } catch (e) {
       console.error('Error reading local drafts', e);
@@ -71,12 +87,17 @@ export default function Dashboard() {
     // 2. Fetch server drafts from endpoints (if online)
     if (navigator.onLine) {
       try {
-        const [villaRes, apartmentRes] = await Promise.all([
-          api.get('/api/villa/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
-          api.get('/api/apartment/drafts').catch(() => ({ data: { data: { drafts: [] } } })),
+        const [villaRes, apartmentRes, wvRes, veloraRes] = await Promise.all([
+          hasVilla ? api.get('/api/villa/drafts').catch(() => ({ data: { data: { drafts: [] } } })) : { data: { data: { drafts: [] } } },
+          hasApartment ? api.get('/api/apartment/drafts').catch(() => ({ data: { data: { drafts: [] } } })) : { data: { data: { drafts: [] } } },
+          hasWv ? api.get('/api/wv/drafts').catch(() => ({ data: { data: { drafts: [] } } })) : { data: { data: { drafts: [] } } },
+          hasVelora ? api.get('/api/velora/drafts').catch(() => ({ data: { data: [] } })) : { data: { data: [] } },
         ]);
         const villaDrafts = villaRes.data?.data?.drafts || [];
         const apartmentDrafts = apartmentRes.data?.data?.drafts || [];
+        const wvDrafts = wvRes.data?.data?.drafts || [];
+        // Velora's /api/velora/drafts returns the array directly under data (see VeloraApp.jsx DraftsList).
+        const veloraDrafts = veloraRes.data?.data || [];
 
         villaDrafts.forEach(d => {
           foundDrafts.push({
@@ -94,6 +115,26 @@ export default function Dashboard() {
             type: 'apartment',
             title: `Apartment ${d.roomNo || '—'}${d.tenantName ? ` · ${d.tenantName}` : ''}`,
             description: `Last saved: ${relativeTime(d.updatedAt)}`,
+            data: d
+          });
+        });
+
+        wvDrafts.forEach(d => {
+          foundDrafts.push({
+            id: d.id,
+            type: 'wv',
+            title: `WV Audit (${d.auditType || 'Draft'})`,
+            description: `Building: ${d.building || 'N/A'} · Saved ${relativeTime(d.updatedAt || d.createdAt)}`,
+            data: d
+          });
+        });
+
+        veloraDrafts.forEach(d => {
+          foundDrafts.push({
+            id: d.id,
+            type: 'velora',
+            title: `Velora (${d.serviceCategory || 'Draft'})`,
+            description: `Audit: ${d.auditNumber || 'N/A'} · Saved ${relativeTime(d.updatedAt)}`,
             data: d
           });
         });
@@ -256,35 +297,78 @@ export default function Dashboard() {
           <p style={{ color: 'var(--gray)', marginBottom: '1.5rem' }}>
             Welcome, {user?.username}. Please select the audit module you wish to access:
           </p>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
-            <div
-              className="card card-clickable module-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate('/villa')}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/villa'); } }}
-            >
-              <span className="module-icon"><SnagIcon /></span>
-              <div>
-                <h3>Snag Audit</h3>
-                <p>General flat inspections and defect logging.</p>
-              </div>
-            </div>
 
-            <div
-              className="card card-clickable module-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate('/apartment')}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/apartment'); } }}
-            >
-              <span className="module-icon"><HomeIcon /></span>
-              <div>
-                <h3>Apartment Audit</h3>
-                <p>Room-by-room apartment inspection checklist.</p>
+          {user?.role !== 'ADMIN' && user?.role !== 'SUPERADMIN'
+            && !['villa', 'apartment', 'wv', 'velora'].some((m) => canAccessModule(user, m)) && (
+            <p style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
+              No modules are enabled on your account yet. Ask an administrator to grant access.
+            </p>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+            {canAccessModule(user, 'villa') && (
+              <div
+                className="card card-clickable module-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/villa')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/villa'); } }}
+              >
+                <span className="module-icon"><SnagIcon /></span>
+                <div>
+                  <h3>Snag Audit</h3>
+                  <p>General flat inspections and defect logging.</p>
+                </div>
               </div>
-            </div>
+            )}
+
+            {canAccessModule(user, 'apartment') && (
+              <div
+                className="card card-clickable module-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/apartment')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/apartment'); } }}
+              >
+                <span className="module-icon"><HomeIcon /></span>
+                <div>
+                  <h3>Apartment Audit</h3>
+                  <p>Room-by-room apartment inspection checklist.</p>
+                </div>
+              </div>
+            )}
+
+            {canAccessModule(user, 'wv') && (
+              <div
+                className="card card-clickable module-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/wv')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/wv'); } }}
+              >
+                <span className="module-icon"><BuildingIcon /></span>
+                <div>
+                  <h3>Workers Village</h3>
+                  <p>Accommodation compliance audits.</p>
+                </div>
+              </div>
+            )}
+
+            {canAccessModule(user, 'velora') && (
+              <div
+                className="card card-clickable module-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/velora')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/velora'); } }}
+              >
+                <span className="module-icon"><SparkleIcon /></span>
+                <div>
+                  <h3>Velora</h3>
+                  <p>Facilities services performance audits.</p>
+                </div>
+              </div>
+            )}
 
             {(user?.role === 'SUPERADMIN' || user?.role === 'ADMIN') && (
               <div

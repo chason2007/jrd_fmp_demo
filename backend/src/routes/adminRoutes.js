@@ -7,6 +7,7 @@ import {
   updateStatusSchema,
   updateUserSchema,
   updateRoleSchema,
+  updateModulesSchema,
   resetPasswordSchema,
   idParam,
   moduleParam,
@@ -30,6 +31,7 @@ router.delete('/users/:id', requireRole('SUPERADMIN', 'ADMIN'), validateParams(i
 router.get('/resets', requireRole('SUPERADMIN'), asyncHandler(admin.getResetRequests));
 router.post('/resets/:id/approve', requireRole('SUPERADMIN'), validateParams(idParam), asyncHandler(admin.approveResetRequest));
 router.put('/users/:id/role', requireRole('SUPERADMIN', 'ADMIN'), validateParams(idParam), validate(updateRoleSchema), asyncHandler(admin.updateUserRole));
+router.put('/users/:id/modules', requireRole('SUPERADMIN'), validateParams(idParam), validate(updateModulesSchema), asyncHandler(admin.updateUserModules));
 router.put('/users/:id/password', requireRole('SUPERADMIN'), validateParams(idParam), validate(resetPasswordSchema), asyncHandler(admin.resetUserPassword));
 
 // Global Audits / Inspection Management (ADMIN only)

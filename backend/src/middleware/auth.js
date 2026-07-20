@@ -22,11 +22,11 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 
   const user = await prisma.user.findUnique({
     where: { id: Number(payload.sub) },
-    select: { id: true, username: true, role: true, isActive: true },
+    select: { id: true, username: true, role: true, isActive: true, enabledModules: true },
   });
   if (!user || !user.isActive) throw new HttpError(401, 'Account is not active.');
 
-  req.user = { id: user.id, username: user.username, role: user.role };
+  req.user = { id: user.id, username: user.username, role: user.role, enabledModules: user.enabledModules };
   next();
 });
 
@@ -34,6 +34,21 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 export const requireRole = (...roles) => (req, res, next) => {
   if (!req.user || !roles.includes(req.user.role)) {
     return next(new HttpError(403, 'You do not have permission to perform this action.'));
+  }
+  next();
+};
+
+/**
+ * Require the caller to have a specific audit module enabled. Use after
+ * requireRole('ADMIN', 'AUDITOR') on a module's routes (villa/apartment/wv/velora)
+ * — re-checked from the DB on every request via requireAuth, so a superadmin
+ * revoking a module takes effect on the user's very next API call, no waiting
+ * for a token refresh. SUPERADMIN never reaches these routes (requireRole
+ * excludes it), so no bypass is needed here.
+ */
+export const requireModule = (moduleKey) => (req, res, next) => {
+  if (!req.user?.enabledModules?.includes(moduleKey)) {
+    return next(new HttpError(403, 'You do not have access to this module.'));
   }
   next();
 };
