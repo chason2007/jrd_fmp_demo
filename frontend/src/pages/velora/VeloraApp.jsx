@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import { useAutosave } from '../../hooks/useAutosave.js';
 import AutosaveStatus from '../../components/AutosaveStatus.jsx';
 import { newLocalId, listOfflineDrafts, deleteOfflineDraft, syncOfflineDrafts } from '../../lib/offlineDrafts.js';
+import { todayLocal, toLocalDateInput } from '../../lib/localDate.js';
 import './VeloraApp.css';
 
 // Push one device-held Velora draft up to the server (used by the reconnect sync).
@@ -187,7 +188,7 @@ export default function VeloraApp() {
   const [auditNumber, setAuditNumber] = useState(null);
   const [serviceCategory, setServiceCategory] = useState('');
   const [serviceTypeId, setServiceTypeId] = useState('');
-  const [auditDate, setAuditDate] = useState(new Date().toISOString().split('T')[0]);
+  const [auditDate, setAuditDate] = useState(todayLocal());
   const [auditorName, setAuditorName] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedLocations, setSelectedLocations] = useState([]);
@@ -234,7 +235,7 @@ export default function VeloraApp() {
     setServiceCategory(draft.serviceCategory || '');
     setServiceTypeId(draft.serviceTypeId || '');
     if (draft.auditDate) {
-      setAuditDate(new Date(draft.auditDate).toISOString().split('T')[0]);
+      setAuditDate(toLocalDateInput(draft.auditDate));
     }
     setAuditorName(draft.auditorName || user?.username || '');
     
@@ -326,7 +327,7 @@ export default function VeloraApp() {
     setAuditNumber(null);
     setServiceCategory('');
     setServiceTypeId('');
-    setAuditDate(new Date().toISOString().split('T')[0]);
+    setAuditDate(todayLocal());
     setAuditorName(user?.username || '');
     setNotes('');
     setSelectedLocations([]);
@@ -2337,7 +2338,7 @@ function ServiceReportsList() {
   const { show } = useToast();
   const [reports, setReports] = useState([]);
   const [reportType, setReportType] = useState('');
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportDate, setReportDate] = useState(todayLocal());
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2604,10 +2605,10 @@ function ComplianceList() {
   const [category, setCategory] = useState('');
   const [items, setItems] = useState([]);
   const [itemId, setItemId] = useState('');
-  const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [deliveryDate, setDeliveryDate] = useState(todayLocal());
   const [status, setStatus] = useState('compliant');
   const [verifiedBy, setVerifiedBy] = useState('');
-  const [verificationDate, setVerificationDate] = useState(new Date().toISOString().split('T')[0]);
+  const [verificationDate, setVerificationDate] = useState(todayLocal());
   const [evidence, setEvidence] = useState('');
   const [loading, setLoading] = useState(false);
 

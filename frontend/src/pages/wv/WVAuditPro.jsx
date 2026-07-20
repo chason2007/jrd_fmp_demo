@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { generateUnifiedPdf } from '../../utils/pdfGenerator.js';
 import { newLocalId, listOfflineDrafts, deleteOfflineDraft, syncOfflineDrafts } from '../../lib/offlineDrafts.js';
+import { todayLocal, toLocalDateInput } from '../../lib/localDate.js';
 
 // Turn a device-held autosave snapshot ({ meta, responses }) into the on-wire
 // draft shape the server expects (same mapping AuditWorkspace.getPayload uses).
@@ -205,7 +206,7 @@ const emptyMeta = {
   room: '',
   staffName: '',
   staffNo: '',
-  auditDate: new Date().toISOString().split('T')[0],
+  auditDate: todayLocal(),
   inspectorName: ''
 };
 
@@ -245,7 +246,7 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
       room: resumeDraft.room || '',
       staffName: resumeDraft.staffName || '',
       staffNo: resumeDraft.staffNo || '',
-      auditDate: resumeDraft.auditDate ? new Date(resumeDraft.auditDate).toISOString().split('T')[0] : emptyMeta.auditDate,
+      auditDate: resumeDraft.auditDate ? toLocalDateInput(resumeDraft.auditDate) : emptyMeta.auditDate,
       inspectorName: resumeDraft.inspectorName || '',
     });
     setResponses(responsesFromWire(resumeDraft.responses));

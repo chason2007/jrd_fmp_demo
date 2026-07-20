@@ -16,6 +16,7 @@ import Lightbox from '../../components/Lightbox.jsx';
 import { LayoutDashboard, LogOut } from 'lucide-react';
 import { generateUnifiedPdf } from '../../utils/pdfGenerator.js';
 import { newLocalId, listOfflineDrafts, deleteOfflineDraft, syncOfflineDrafts } from '../../lib/offlineDrafts.js';
+import { todayLocal, toLocalDateInput } from '../../lib/localDate.js';
 import {
   RESPONSE_OPTIONS,
   NON_COMPLIANT_ANSWERS,
@@ -34,7 +35,7 @@ const emptyMeta = {
   location: '',
   moveInDate: '',
   landlordName: '',
-  auditDate: new Date().toISOString().split('T')[0],
+  auditDate: todayLocal(),
   bedroomCount: 1,
   bathroomCount: 1,
 };
@@ -216,9 +217,9 @@ function AuditWorkspace({ resumeDraft, resumeOfflineDraft, onResumed, onOfflineR
       apartmentType: resumeDraft.apartmentType || '',
       roomNo: resumeDraft.roomNo || '',
       location: resumeDraft.location || '',
-      moveInDate: resumeDraft.moveInDate ? new Date(resumeDraft.moveInDate).toISOString().split('T')[0] : '',
+      moveInDate: toLocalDateInput(resumeDraft.moveInDate),
       landlordName: resumeDraft.landlordName || '',
-      auditDate: resumeDraft.auditDate ? new Date(resumeDraft.auditDate).toISOString().split('T')[0] : emptyMeta.auditDate,
+      auditDate: resumeDraft.auditDate ? toLocalDateInput(resumeDraft.auditDate) : emptyMeta.auditDate,
       bedroomCount: resumeDraft.bedroomCount ?? 1,
       bathroomCount: resumeDraft.bathroomCount ?? 1,
     });
